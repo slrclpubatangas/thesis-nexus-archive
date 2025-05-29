@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Search, FileText, Users, School } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
@@ -55,7 +54,8 @@ const SubmissionForm = () => {
         school: userType === 'non-lpu' ? formData.school : null,
         campus: formData.campus,
         program: userType === 'lpu' ? formData.program : null,
-        thesis_title: formData.thesisTitle
+        thesis_title: formData.thesisTitle,
+        submission_date: new Date().toISOString() // Add submission date
       };
 
       const { error } = await supabase
