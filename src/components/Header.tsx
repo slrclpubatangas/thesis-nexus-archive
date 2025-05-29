@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { LogOut, Tutorial, UserCog } from 'lucide-react';
+import { LogOut, BookOpen, UserCog } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 
 const Header = () => {
@@ -26,7 +26,7 @@ const Header = () => {
           {/* Navigation */}
           <div className="flex items-center space-x-4">
             <button className="btn-secondary flex items-center space-x-2">
-              <Tutorial size={16} />
+              <BookOpen size={16} />
               <span className="hidden sm:inline">Tutorial</span>
             </button>
             
