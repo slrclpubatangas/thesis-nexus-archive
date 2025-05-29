@@ -1,12 +1,54 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+
+import React, { useState } from 'react';
+import Header from '../components/Header';
+import SubmissionForm from '../components/SubmissionForm';
+import AdminDashboard from '../components/admin/AdminDashboard';
+import LoginModal from '../components/LoginModal';
+import { useAuth } from '../hooks/useAuth';
 
 const Index = () => {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-gray-600">Start building your amazing project here!</p>
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <Header />
+      
+      {/* Main Content */}
+      {user ? (
+        <AdminDashboard />
+      ) : (
+        <SubmissionForm />
+      )}
+
+      {/* Login Modal */}
+      <LoginModal 
+        isOpen={showLoginModal} 
+        onClose={() => setShowLoginModal(false)} 
+      />
+
+      {/* Admin Login Button for Non-Authenticated Users */}
+      {!user && (
+        <div className="fixed bottom-6 right-6">
+          <button
+            onClick={() => setShowLoginModal(true)}
+            className="btn-primary shadow-lg hover:shadow-xl"
+          >
+            Admin Login
+          </button>
+        </div>
+      )}
     </div>
   );
 };
