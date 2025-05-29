@@ -1,8 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import { Search, Filter, Download, Eye, Edit, Trash2 } from 'lucide-react';
 import { supabase } from '../../integrations/supabase/client';
 import { useToast } from '../../hooks/use-toast';
+import { useAuth } from '../../hooks/useAuth';
 
 interface ThesisSubmission {
   id: string;
@@ -23,29 +23,47 @@ const UserRecords = () => {
   const [records, setRecords] = useState<ThesisSubmission[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   useEffect(() => {
+    console.log('UserRecords component mounted');
+    console.log('Current user:', user);
     fetchRecords();
-  }, []);
+  }, [user]);
 
   const fetchRecords = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      console.log('Fetching records from Supabase...');
+      
+      // Check current session
+      const { data: session, error: sessionError } = await supabase.auth.getSession();
+      console.log('Current session:', session);
+      if (sessionError) {
+        console.error('Session error:', sessionError);
+      }
+
+      // Try to fetch data without authentication first to see if RLS is the issue
+      const { data, error, count } = await supabase
         .from('thesis_submissions')
-        .select('*')
+        .select('*', { count: 'exact' })
         .order('submission_date', { ascending: false });
 
+      console.log('Supabase query result:', { data, error, count });
+      console.log('Number of records found:', data?.length || 0);
+
       if (error) {
+        console.error('Error fetching records:', error);
         throw error;
       }
 
       setRecords(data || []);
+      console.log('Records set in state:', data || []);
     } catch (error) {
-      console.error('Error fetching records:', error);
+      console.error('Error in fetchRecords:', error);
       toast({
         title: "Error",
-        description: "Failed to fetch submission records.",
+        description: "Failed to fetch submission records. Check console for details.",
         variant: "destructive",
       });
     } finally {
@@ -59,12 +77,14 @@ const UserRecords = () => {
     }
 
     try {
+      console.log('Deleting record with id:', id);
       const { error } = await supabase
         .from('thesis_submissions')
         .delete()
         .eq('id', id);
 
       if (error) {
+        console.error('Delete error:', error);
         throw error;
       }
 
@@ -120,6 +140,13 @@ const UserRecords = () => {
     window.URL.revokeObjectURL(url);
   };
 
+  console.log('Rendering UserRecords with:', {
+    loading,
+    recordsCount: records.length,
+    filteredRecordsCount: filteredRecords.length,
+    user: user ? 'authenticated' : 'not authenticated'
+  });
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -143,6 +170,17 @@ const UserRecords = () => {
           <Download size={16} />
           <span>Export CSV</span>
         </button>
+      </div>
+
+      {/* Debug Information */}
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <h3 className="font-semibold text-yellow-800 mb-2">Debug Information:</h3>
+        <ul className="text-sm text-yellow-700 space-y-1">
+          <li>• User authenticated: {user ? 'Yes' : 'No'}</li>
+          <li>• Total records found: {records.length}</li>
+          <li>• Loading state: {loading ? 'Yes' : 'No'}</li>
+          <li>• Check browser console for detailed logs</li>
+        </ul>
       </div>
 
       {/* Filters */}
