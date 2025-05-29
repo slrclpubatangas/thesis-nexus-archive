@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Search, FileText, Users, School } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
+import { supabase } from '../integrations/supabase/client';
 
 const SubmissionForm = () => {
   const [userType, setUserType] = useState<'lpu' | 'non-lpu'>('lpu');
@@ -13,6 +14,7 @@ const SubmissionForm = () => {
     program: '',
     thesisTitle: ''
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
   const campusOptions = [
@@ -41,24 +43,53 @@ const SubmissionForm = () => {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Form submitted:', { userType, ...formData });
+    setIsSubmitting(true);
     
-    toast({
-      title: "Record Submitted",
-      description: "Your thesis record has been successfully submitted.",
-    });
+    try {
+      const submissionData = {
+        full_name: formData.fullName,
+        user_type: userType === 'lpu' ? 'LPU Student' : 'Non-LPU Student',
+        student_number: userType === 'lpu' ? formData.studentNumber : null,
+        school: userType === 'non-lpu' ? formData.school : null,
+        campus: formData.campus,
+        program: userType === 'lpu' ? formData.program : null,
+        thesis_title: formData.thesisTitle
+      };
 
-    // Reset form
-    setFormData({
-      fullName: '',
-      studentNumber: '',
-      school: '',
-      campus: '',
-      program: '',
-      thesisTitle: ''
-    });
+      const { error } = await supabase
+        .from('thesis_submissions')
+        .insert([submissionData]);
+
+      if (error) {
+        throw error;
+      }
+
+      toast({
+        title: "Record Submitted",
+        description: "Your thesis record has been successfully submitted.",
+      });
+
+      // Reset form
+      setFormData({
+        fullName: '',
+        studentNumber: '',
+        school: '',
+        campus: '',
+        program: '',
+        thesisTitle: ''
+      });
+    } catch (error) {
+      console.error('Error submitting record:', error);
+      toast({
+        title: "Submission Failed",
+        description: "There was an error submitting your record. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -204,10 +235,11 @@ const SubmissionForm = () => {
             <div className="flex justify-end pt-6">
               <button
                 type="submit"
-                className="btn-primary flex items-center space-x-2"
+                disabled={isSubmitting}
+                className="btn-primary flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <FileText size={20} />
-                <span>Submit Record</span>
+                <span>{isSubmitting ? 'Submitting...' : 'Submit Record'}</span>
               </button>
             </div>
           </form>

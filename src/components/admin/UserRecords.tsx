@@ -1,77 +1,132 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, Filter, Download, Eye, Edit, Trash2 } from 'lucide-react';
+import { supabase } from '../../integrations/supabase/client';
+import { useToast } from '../../hooks/use-toast';
+
+interface ThesisSubmission {
+  id: string;
+  full_name: string;
+  user_type: string;
+  student_number: string | null;
+  school: string | null;
+  campus: string;
+  program: string | null;
+  thesis_title: string;
+  submission_date: string;
+}
 
 const UserRecords = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
+  const [records, setRecords] = useState<ThesisSubmission[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
-  // Sample data
-  const records = [
-    {
-      id: 1,
-      fullName: 'John Doe',
-      userType: 'LPU Student',
-      studentNumber: '12345678',
-      campus: 'Manila',
-      program: 'Computer Science',
-      thesisTitle: 'AI-Powered Learning Management System',
-      submissionDate: '2024-01-15'
-    },
-    {
-      id: 2,
-      fullName: 'Jane Smith',
-      userType: 'Non-LPU Student',
-      school: 'University of Manila',
-      campus: 'Manila',
-      thesisTitle: 'Blockchain Technology in Education',
-      submissionDate: '2024-01-14'
-    },
-    {
-      id: 3,
-      fullName: 'Mike Johnson',
-      userType: 'LPU Student',
-      studentNumber: '87654321',
-      campus: 'Batangas',
-      program: 'Engineering',
-      thesisTitle: 'Sustainable Energy Solutions',
-      submissionDate: '2024-01-13'
-    },
-    {
-      id: 4,
-      fullName: 'Sarah Wilson',
-      userType: 'LPU Student',
-      studentNumber: '11223344',
-      campus: 'Cavite',
-      program: 'Psychology',
-      thesisTitle: 'Mental Health in Digital Age',
-      submissionDate: '2024-01-12'
-    },
-    {
-      id: 5,
-      fullName: 'David Brown',
-      userType: 'Non-LPU Student',
-      school: 'Ateneo de Manila',
-      campus: 'Makati',
-      thesisTitle: 'Social Media Impact on Youth',
-      submissionDate: '2024-01-11'
-    },
-  ];
+  useEffect(() => {
+    fetchRecords();
+  }, []);
+
+  const fetchRecords = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('thesis_submissions')
+        .select('*')
+        .order('submission_date', { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+
+      setRecords(data || []);
+    } catch (error) {
+      console.error('Error fetching records:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch submission records.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this record?')) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('thesis_submissions')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        throw error;
+      }
+
+      toast({
+        title: "Success",
+        description: "Record deleted successfully.",
+      });
+
+      // Refresh the records
+      fetchRecords();
+    } catch (error) {
+      console.error('Error deleting record:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete record.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const filteredRecords = records.filter(record => {
-    const matchesSearch = record.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         record.thesisTitle.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = record.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         record.thesis_title.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesFilter = filterType === 'all' || 
-                         (filterType === 'lpu' && record.userType === 'LPU Student') ||
-                         (filterType === 'non-lpu' && record.userType === 'Non-LPU Student');
+                         (filterType === 'lpu' && record.user_type === 'LPU Student') ||
+                         (filterType === 'non-lpu' && record.user_type === 'Non-LPU Student');
     return matchesSearch && matchesFilter;
   });
 
   const handleExport = () => {
-    console.log('Exporting records...');
-    // Implementation for CSV export
+    // Create CSV content
+    const headers = ['Name', 'Type', 'ID/School', 'Campus', 'Program', 'Thesis Title', 'Date'];
+    const csvContent = [
+      headers.join(','),
+      ...filteredRecords.map(record => [
+        record.full_name,
+        record.user_type,
+        record.student_number || record.school || '',
+        record.campus,
+        record.program || '',
+        record.thesis_title,
+        new Date(record.submission_date).toLocaleDateString()
+      ].map(field => `"${field}"`).join(','))
+    ].join('\n');
+
+    // Download CSV
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'thesis_submissions.csv';
+    a.click();
+    window.URL.revokeObjectURL(url);
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -79,7 +134,7 @@ const UserRecords = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">User Records</h2>
-          <p className="text-gray-600">Manage and export submission data</p>
+          <p className="text-gray-600">Manage and export submission data ({records.length} total records)</p>
         </div>
         <button 
           onClick={handleExport}
@@ -146,49 +201,67 @@ const UserRecords = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredRecords.map((record) => (
-                <tr key={record.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">
-                      {record.fullName}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      record.userType === 'LPU Student' 
-                        ? 'bg-red-100 text-red-800' 
-                        : 'bg-blue-100 text-blue-800'
-                    }`}>
-                      {record.userType}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {record.studentNumber || record.school}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {record.campus}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
-                    {record.thesisTitle}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {record.submissionDate}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex space-x-2">
-                      <button className="text-blue-600 hover:text-blue-900">
-                        <Eye size={16} />
-                      </button>
-                      <button className="text-green-600 hover:text-green-900">
-                        <Edit size={16} />
-                      </button>
-                      <button className="text-red-600 hover:text-red-900">
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
+              {filteredRecords.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
+                    {records.length === 0 ? 'No submissions yet.' : 'No records match your search criteria.'}
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredRecords.map((record) => (
+                  <tr key={record.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">
+                        {record.full_name}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        record.user_type === 'LPU Student' 
+                          ? 'bg-red-100 text-red-800' 
+                          : 'bg-blue-100 text-blue-800'
+                      }`}>
+                        {record.user_type}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {record.student_number || record.school || '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {record.campus}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
+                      {record.thesis_title}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {new Date(record.submission_date).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex space-x-2">
+                        <button 
+                          className="text-blue-600 hover:text-blue-900"
+                          title="View details"
+                        >
+                          <Eye size={16} />
+                        </button>
+                        <button 
+                          className="text-green-600 hover:text-green-900"
+                          title="Edit record"
+                        >
+                          <Edit size={16} />
+                        </button>
+                        <button 
+                          className="text-red-600 hover:text-red-900"
+                          onClick={() => handleDelete(record.id)}
+                          title="Delete record"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
