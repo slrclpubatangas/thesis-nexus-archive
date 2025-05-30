@@ -1,6 +1,5 @@
-
 import React from 'react';
-import { LogOut, BookOpen, UserCog } from 'lucide-react';
+import { LogOut, BookOpen } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 
 const Header = () => {
@@ -38,7 +37,7 @@ const Header = () => {
               <span className="hidden sm:inline">Tutorial</span>
             </button>
             
-            {user ? (
+            {user && (
               <div className="flex items-center space-x-3">
                 <span className="text-sm text-gray-700 hidden sm:inline">
                   Welcome, {user.email}
@@ -51,11 +50,6 @@ const Header = () => {
                   <span>Logout</span>
                 </button>
               </div>
-            ) : (
-              <button className="btn-primary flex items-center space-x-2">
-                <UserCog size={16} />
-                <span>Admin Login</span>
-              </button>
             )}
           </div>
         </div>
