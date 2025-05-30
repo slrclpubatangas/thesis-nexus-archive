@@ -6,6 +6,14 @@ import { useAuth } from '../hooks/useAuth';
 const Header = () => {
   const { user, signOut } = useAuth();
 
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+    } catch (error) {
+      console.error('Sign out error:', error);
+    }
+  };
+
   return (
     <header className="bg-white border-b border-gray-200 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -33,10 +41,10 @@ const Header = () => {
             {user ? (
               <div className="flex items-center space-x-3">
                 <span className="text-sm text-gray-700 hidden sm:inline">
-                  Welcome, Admin
+                  Welcome, {user.email}
                 </span>
                 <button 
-                  onClick={signOut}
+                  onClick={handleSignOut}
                   className="btn-primary flex items-center space-x-2"
                 >
                   <LogOut size={16} />

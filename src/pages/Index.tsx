@@ -8,7 +8,13 @@ import { useAuth } from '../hooks/useAuth';
 
 const Index = () => {
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const { user, loading } = useAuth();
+  const { user, session, loading } = useAuth();
+
+  console.log('Index component - Auth state:', { 
+    user: user?.email, 
+    hasSession: !!session, 
+    loading 
+  });
 
   if (loading) {
     return (
@@ -26,7 +32,7 @@ const Index = () => {
       <Header />
       
       {/* Main Content */}
-      {user ? (
+      {user && session ? (
         <AdminDashboard />
       ) : (
         <SubmissionForm />

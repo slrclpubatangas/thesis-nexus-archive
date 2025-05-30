@@ -22,16 +22,37 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
     setLoading(true);
 
     try {
+      console.log('Login form submitted for:', email);
       await signIn(email, password);
       toast({
         title: "Success",
         description: "Successfully logged in!",
       });
       onClose();
-    } catch (error) {
+      // Reset form
+      setEmail('');
+      setPassword('');
+    } catch (error: any) {
+      console.error('Login error:', error);
+      
+      let errorMessage = "Invalid credentials. Please try again.";
+      
+      // Handle specific Supabase auth errors
+      if (error?.message) {
+        if (error.message.includes('Invalid login credentials')) {
+          errorMessage = "Invalid email or password. Please check your credentials.";
+        } else if (error.message.includes('Email not confirmed')) {
+          errorMessage = "Please check your email and confirm your account before signing in.";
+        } else if (error.message.includes('User not found')) {
+          errorMessage = "No account found with this email address.";
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
       toast({
-        title: "Error",
-        description: "Invalid credentials. Please try again.",
+        title: "Login Failed",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -68,7 +89,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="input-field pl-10"
-                placeholder="admin@lpu.edu.ph"
+                placeholder="Enter your email"
                 required
               />
             </div>
@@ -85,7 +106,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="input-field pl-10 pr-10"
-                placeholder="••••••••"
+                placeholder="Enter your password"
                 required
               />
               <button
@@ -99,9 +120,9 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
           </div>
 
           <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded-lg">
-            <strong>Demo Credentials:</strong><br />
-            Email: admin@lpu.edu.ph<br />
-            Password: admin123
+            <strong>Note:</strong><br />
+            You need to create an admin account in Supabase first. 
+            Contact your administrator or check the Supabase dashboard to create an account.
           </div>
 
           <button
