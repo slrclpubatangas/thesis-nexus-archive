@@ -9,6 +9,42 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      thesis_data: {
+        Row: {
+          id: number
+          barcode: string
+          thesis_title: string
+          authors: string[]
+          department: string
+          publication_year: number
+          upload_date: string
+          last_modified: string
+          is_deleted: boolean
+        }
+        Insert: {
+          id?: number
+          barcode: string
+          thesis_title: string
+          authors: string[]
+          department: string
+          publication_year: number
+          upload_date?: string
+          last_modified?: string
+          is_deleted?: boolean
+        }
+        Update: {
+          id?: number
+          barcode?: string
+          thesis_title?: string
+          authors?: string[]
+          department?: string
+          publication_year?: number
+          upload_date?: string
+          last_modified?: string
+          is_deleted?: boolean
+        }
+        Relationships: []
+      }
       thesis_submissions: {
         Row: {
           campus: string
@@ -56,7 +92,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      thesis_status: "draft" | "published" | "archived"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -171,6 +207,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      thesis_status: ["draft", "published", "archived"] as const,
+    },
   },
 } as const
