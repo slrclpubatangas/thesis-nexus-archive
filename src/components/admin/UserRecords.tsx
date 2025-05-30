@@ -1,8 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { Search, Filter, Download, Eye, Edit, Trash2 } from 'lucide-react';
 import { supabase } from '../../integrations/supabase/client';
 import { useToast } from '../../hooks/use-toast';
-import { useAuth } from '../../hooks/useAuth';
 
 interface ThesisSubmission {
   id: string;
@@ -23,34 +23,46 @@ const UserRecords = () => {
   const [records, setRecords] = useState<ThesisSubmission[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
-  const { user } = useAuth();
 
   useEffect(() => {
     console.log('UserRecords component mounted');
-    console.log('Current user:', user);
     fetchRecords();
-  }, [user]);
+    
+    // Set up real-time subscription
+    const channel = supabase
+      .channel('thesis-submissions-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'thesis_submissions'
+        },
+        (payload) => {
+          console.log('Real-time update received:', payload);
+          // Refresh data when changes occur
+          fetchRecords();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      console.log('Cleaning up real-time subscription');
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const fetchRecords = async () => {
     try {
       setLoading(true);
       console.log('Fetching records from Supabase...');
       
-      // Check current session
-      const { data: session, error: sessionError } = await supabase.auth.getSession();
-      console.log('Current session:', session);
-      if (sessionError) {
-        console.error('Session error:', sessionError);
-      }
-
-      // Try to fetch data without authentication first to see if RLS is the issue
       const { data, error, count } = await supabase
         .from('thesis_submissions')
         .select('*', { count: 'exact' })
         .order('submission_date', { ascending: false });
 
       console.log('Supabase query result:', { data, error, count });
-      console.log('Number of records found:', data?.length || 0);
 
       if (error) {
         console.error('Error fetching records:', error);
@@ -58,12 +70,19 @@ const UserRecords = () => {
       }
 
       setRecords(data || []);
-      console.log('Records set in state:', data || []);
+      console.log('Records updated in state:', data?.length || 0, 'records');
+      
+      if (data && data.length > 0) {
+        toast({
+          title: "Records Loaded",
+          description: `Successfully loaded ${data.length} thesis submission records.`,
+        });
+      }
     } catch (error) {
       console.error('Error in fetchRecords:', error);
       toast({
         title: "Error",
-        description: "Failed to fetch submission records. Check console for details.",
+        description: "Failed to fetch submission records. Please check your connection and try again.",
         variant: "destructive",
       });
     } finally {
@@ -140,17 +159,11 @@ const UserRecords = () => {
     window.URL.revokeObjectURL(url);
   };
 
-  console.log('Rendering UserRecords with:', {
-    loading,
-    recordsCount: records.length,
-    filteredRecordsCount: filteredRecords.length,
-    user: user ? 'authenticated' : 'not authenticated'
-  });
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
+        <span className="ml-2 text-gray-600">Loading thesis submissions...</span>
       </div>
     );
   }
@@ -161,26 +174,27 @@ const UserRecords = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">User Records</h2>
-          <p className="text-gray-600">Manage and export submission data ({records.length} total records)</p>
+          <p className="text-gray-600">
+            Manage and export thesis submission data ({records.length} total records)
+          </p>
         </div>
-        <button 
-          onClick={handleExport}
-          className="btn-primary flex items-center space-x-2"
-        >
-          <Download size={16} />
-          <span>Export CSV</span>
-        </button>
-      </div>
-
-      {/* Debug Information */}
-      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-        <h3 className="font-semibold text-yellow-800 mb-2">Debug Information:</h3>
-        <ul className="text-sm text-yellow-700 space-y-1">
-          <li>• User authenticated: {user ? 'Yes' : 'No'}</li>
-          <li>• Total records found: {records.length}</li>
-          <li>• Loading state: {loading ? 'Yes' : 'No'}</li>
-          <li>• Check browser console for detailed logs</li>
-        </ul>
+        <div className="flex gap-2">
+          <button 
+            onClick={fetchRecords}
+            className="btn-secondary flex items-center space-x-2"
+            disabled={loading}
+          >
+            <span>Refresh</span>
+          </button>
+          <button 
+            onClick={handleExport}
+            className="btn-primary flex items-center space-x-2"
+            disabled={filteredRecords.length === 0}
+          >
+            <Download size={16} />
+            <span>Export CSV</span>
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -228,6 +242,9 @@ const UserRecords = () => {
                   Campus
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Program
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Thesis Title
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -241,8 +258,17 @@ const UserRecords = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
-                    {records.length === 0 ? 'No submissions yet.' : 'No records match your search criteria.'}
+                  <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                    {records.length === 0 ? (
+                      <div>
+                        <p className="text-lg font-medium mb-2">No thesis submissions yet</p>
+                        <p className="text-sm">
+                          Submissions made through the form will appear here automatically.
+                        </p>
+                      </div>
+                    ) : (
+                      'No records match your search criteria.'
+                    )}
                   </td>
                 </tr>
               ) : (
@@ -268,8 +294,13 @@ const UserRecords = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {record.campus}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
-                      {record.thesis_title}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {record.program || '-'}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900 max-w-xs">
+                      <div className="truncate" title={record.thesis_title}>
+                        {record.thesis_title}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {new Date(record.submission_date).toLocaleDateString()}
@@ -305,25 +336,17 @@ const UserRecords = () => {
         </div>
       </div>
 
-      {/* Pagination */}
-      <div className="flex items-center justify-between">
-        <div className="text-sm text-gray-700">
-          Showing {filteredRecords.length} of {records.length} records
+      {/* Pagination Info */}
+      {filteredRecords.length > 0 && (
+        <div className="flex items-center justify-between text-sm text-gray-700">
+          <div>
+            Showing {filteredRecords.length} of {records.length} records
+          </div>
+          <div className="text-gray-500">
+            Last updated: {new Date().toLocaleTimeString()}
+          </div>
         </div>
-        <div className="flex space-x-2">
-          <button 
-            className="px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50"
-            disabled={currentPage === 1}
-          >
-            Previous
-          </button>
-          <button 
-            className="px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50"
-          >
-            Next
-          </button>
-        </div>
-      </div>
+      )}
     </div>
   );
 };
