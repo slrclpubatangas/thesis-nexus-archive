@@ -50,8 +50,10 @@ const StatisticsTab = () => {
         .gte('submission_date', startOfLastMonth.toISOString())
         .lt('submission_date', startOfMonth.toISOString());
 
-      // Calculate growth rate
-      const growthRate = lastMonthCount ? ((monthlyCount - lastMonthCount) / lastMonthCount) * 100 : 0;
+      // Calculate growth rate - ensure counts are numbers, default to 0 if null
+      const currentMonthNum = monthlyCount ?? 0;
+      const lastMonthNum = lastMonthCount ?? 0;
+      const growthRate = lastMonthNum > 0 ? ((currentMonthNum - lastMonthNum) / lastMonthNum) * 100 : 0;
 
       // Get submission trends (last 6 months)
       const trends = [];
@@ -72,7 +74,7 @@ const StatisticsTab = () => {
 
         trends.push({
           month: start.toLocaleString('default', { month: 'short' }),
-          submissions: count
+          submissions: count ?? 0
         });
       }
 
@@ -104,9 +106,9 @@ const StatisticsTab = () => {
         .sort((a, b) => b.count - a.count);
 
       setStats({
-        totalSubmissions: totalCount || 0,
-        activeUsers: totalCount || 0, // For now, using total count as active users
-        thisMonth: monthlyCount || 0,
+        totalSubmissions: totalCount ?? 0,
+        activeUsers: totalCount ?? 0, // For now, using total count as active users
+        thisMonth: currentMonthNum,
         growthRate,
         submissionTrends: trends,
         userDistribution: [
