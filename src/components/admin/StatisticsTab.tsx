@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { BookOpen, Users, Calendar, TrendingUp, BarChart3, PieChart } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
@@ -7,6 +6,8 @@ import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
 } from '@/components/ui/chart';
 import {
   LineChart,
@@ -19,6 +20,8 @@ import {
   Bar,
   PieChart as RechartsPieChart,
   Cell,
+  Pie,
+  Legend,
 } from 'recharts';
 
 const StatisticsTab = () => {
@@ -129,10 +132,13 @@ const StatisticsTab = () => {
     const campusData: { [key: string]: number } = {};
     
     submissionsStats?.forEach(submission => {
-      campusData[submission.campus] = (campusData[submission.campus] || 0) + 1;
+      const campus = submission.campus || 'Unknown';
+      campusData[campus] = (campusData[campus] || 0) + 1;
     });
 
     return Object.entries(campusData).map(([campus, count]) => ({
+      name: campus,
+      value: count,
       campus,
       count,
     }));
@@ -176,15 +182,19 @@ const StatisticsTab = () => {
   const chartConfig = {
     submissions: {
       label: "Submissions",
-      color: "hsl(var(--chart-1))",
+      color: "#3b82f6",
     },
     count: {
       label: "Count",
-      color: "hsl(var(--chart-2))",
+      color: "#10b981",
+    },
+    value: {
+      label: "Value",
+      color: "#8b5cf6",
     },
   };
 
-  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
+  const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#84cc16', '#f97316'];
 
   return (
     <div className="space-y-6">
@@ -231,18 +241,37 @@ const StatisticsTab = () => {
             <TrendingUp className="h-5 w-5 text-blue-600" />
             <h3 className="text-lg font-semibold text-gray-800">Submission Trends</h3>
           </div>
-          <ChartContainer config={chartConfig} className="h-[300px]">
-            <LineChart data={submissionTrends}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <ChartTooltip content={<ChartTooltipContent />} />
+          <ChartContainer config={chartConfig} className="h-[350px]">
+            <LineChart data={submissionTrends} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis 
+                dataKey="month" 
+                tick={{ fontSize: 12, fill: '#6b7280' }}
+                tickLine={{ stroke: '#6b7280' }}
+                axisLine={{ stroke: '#6b7280' }}
+              />
+              <YAxis 
+                tick={{ fontSize: 12, fill: '#6b7280' }}
+                tickLine={{ stroke: '#6b7280' }}
+                axisLine={{ stroke: '#6b7280' }}
+                label={{ value: 'Number of Submissions', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: '#6b7280' } }}
+              />
+              <ChartTooltip 
+                content={<ChartTooltipContent />}
+                contentStyle={{
+                  backgroundColor: 'white',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                }}
+              />
               <Line 
                 type="monotone" 
                 dataKey="submissions" 
-                stroke="var(--color-submissions)" 
-                strokeWidth={2}
-                dot={{ fill: "var(--color-submissions)" }}
+                stroke={chartConfig.submissions.color}
+                strokeWidth={3}
+                dot={{ fill: chartConfig.submissions.color, strokeWidth: 2, r: 5 }}
+                activeDot={{ r: 7, fill: chartConfig.submissions.color }}
               />
             </LineChart>
           </ChartContainer>
@@ -254,13 +283,38 @@ const StatisticsTab = () => {
             <BarChart3 className="h-5 w-5 text-green-600" />
             <h3 className="text-lg font-semibold text-gray-800">Popular Research Topics</h3>
           </div>
-          <ChartContainer config={chartConfig} className="h-[300px]">
-            <BarChart data={popularTopics} layout="horizontal">
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis type="number" />
-              <YAxis dataKey="topic" type="category" width={100} />
-              <ChartTooltip content={<ChartTooltipContent />} />
-              <Bar dataKey="count" fill="var(--color-count)" />
+          <ChartContainer config={chartConfig} className="h-[350px]">
+            <BarChart data={popularTopics} margin={{ top: 20, right: 30, left: 20, bottom: 80 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis 
+                dataKey="topic" 
+                tick={{ fontSize: 11, fill: '#6b7280' }}
+                tickLine={{ stroke: '#6b7280' }}
+                axisLine={{ stroke: '#6b7280' }}
+                angle={-45}
+                textAnchor="end"
+                height={80}
+              />
+              <YAxis 
+                tick={{ fontSize: 12, fill: '#6b7280' }}
+                tickLine={{ stroke: '#6b7280' }}
+                axisLine={{ stroke: '#6b7280' }}
+                label={{ value: 'Number of Theses', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: '#6b7280' } }}
+              />
+              <ChartTooltip 
+                content={<ChartTooltipContent />}
+                contentStyle={{
+                  backgroundColor: 'white',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                }}
+              />
+              <Bar 
+                dataKey="count" 
+                fill={chartConfig.count.color}
+                radius={[4, 4, 0, 0]}
+              />
             </BarChart>
           </ChartContainer>
         </div>
@@ -271,27 +325,43 @@ const StatisticsTab = () => {
             <PieChart className="h-5 w-5 text-purple-600" />
             <h3 className="text-lg font-semibold text-gray-800">User Distribution by Campus</h3>
           </div>
-          <ChartContainer config={chartConfig} className="h-[300px]">
-            <RechartsPieChart>
-              <ChartTooltip content={<ChartTooltipContent />} />
-              <RechartsPieChart dataKey="count" data={userDistribution} cx="50%" cy="50%" outerRadius={80}>
+          <ChartContainer config={chartConfig} className="h-[350px]">
+            <RechartsPieChart margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+              <Pie
+                data={userDistribution}
+                cx="50%"
+                cy="40%"
+                outerRadius={80}
+                innerRadius={40}
+                paddingAngle={2}
+                dataKey="value"
+                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                labelLine={false}
+              >
                 {userDistribution.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
-              </RechartsPieChart>
+              </Pie>
+              <ChartTooltip 
+                content={<ChartTooltipContent />}
+                contentStyle={{
+                  backgroundColor: 'white',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                }}
+              />
+              <Legend 
+                verticalAlign="bottom" 
+                height={36}
+                formatter={(value, entry) => (
+                  <span style={{ color: entry.color, fontSize: '12px' }}>
+                    {value} ({entry.payload?.count || 0})
+                  </span>
+                )}
+              />
             </RechartsPieChart>
           </ChartContainer>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {userDistribution.map((entry, index) => (
-              <div key={entry.campus} className="flex items-center gap-2">
-                <div 
-                  className="w-3 h-3 rounded-full" 
-                  style={{ backgroundColor: COLORS[index % COLORS.length] }}
-                />
-                <span className="text-sm text-gray-600">{entry.campus} ({entry.count})</span>
-              </div>
-            ))}
-          </div>
         </div>
 
         {/* Recent Activity */}
@@ -312,6 +382,11 @@ const StatisticsTab = () => {
                 </div>
               </div>
             ))}
+            {(!submissionsStats || submissionsStats.length === 0) && (
+              <div className="text-center text-gray-500 py-8">
+                <p>No recent submissions available</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
