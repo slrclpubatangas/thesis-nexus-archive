@@ -1,7 +1,9 @@
+
 import React, { useState } from 'react';
-import { Search, FileText, Users, School } from 'lucide-react';
+import { FileText, Users, School } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { supabase } from '../integrations/supabase/client';
+import ThesisTitleSearch from './ThesisTitleSearch';
 
 const SubmissionForm = () => {
   const [userType, setUserType] = useState<'lpu' | 'non-lpu'>('lpu');
@@ -42,6 +44,10 @@ const SubmissionForm = () => {
     }));
   };
 
+  const handleThesisTitleChange = (value: string) => {
+    handleInputChange('thesisTitle', value);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -55,7 +61,7 @@ const SubmissionForm = () => {
         campus: formData.campus,
         program: userType === 'lpu' ? formData.program : null,
         thesis_title: formData.thesisTitle,
-        submission_date: new Date().toISOString() // Add submission date
+        submission_date: new Date().toISOString()
       };
 
       const { error } = await supabase
@@ -213,22 +219,20 @@ const SubmissionForm = () => {
               )}
             </div>
 
-            {/* Thesis Title */}
+            {/* Thesis Title with Search */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Title of Thesis
               </label>
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                <input
-                  type="text"
-                  value={formData.thesisTitle}
-                  onChange={(e) => handleInputChange('thesisTitle', e.target.value)}
-                  placeholder="Type to search existing thesis titles..."
-                  className="input-field pl-10"
-                  required
-                />
-              </div>
+              <ThesisTitleSearch
+                value={formData.thesisTitle}
+                onChange={handleThesisTitleChange}
+                placeholder="Type to search existing thesis titles..."
+                required
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Start typing to search for existing thesis titles or enter a new one.
+              </p>
             </div>
 
             {/* Submit Button */}
