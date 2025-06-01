@@ -11,37 +11,37 @@ export type Database = {
     Tables: {
       thesis_data: {
         Row: {
-          id: number
-          barcode: string
-          thesis_title: string
           authors: string[]
+          barcode: string
           department: string
-          publication_year: number
-          upload_date: string
-          last_modified: string
+          id: number
           is_deleted: boolean
+          last_modified: string
+          publication_year: number
+          thesis_title: string
+          upload_date: string
         }
         Insert: {
-          id?: number
-          barcode: string
-          thesis_title: string
           authors: string[]
+          barcode: string
           department: string
-          publication_year: number
-          upload_date?: string
-          last_modified?: string
+          id?: number
           is_deleted?: boolean
+          last_modified?: string
+          publication_year: number
+          thesis_title: string
+          upload_date?: string
         }
         Update: {
-          id?: number
-          barcode?: string
-          thesis_title?: string
           authors?: string[]
+          barcode?: string
           department?: string
-          publication_year?: number
-          upload_date?: string
-          last_modified?: string
+          id?: number
           is_deleted?: boolean
+          last_modified?: string
+          publication_year?: number
+          thesis_title?: string
+          upload_date?: string
         }
         Relationships: []
       }
@@ -208,7 +208,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      thesis_status: ["draft", "published", "archived"] as const,
+      thesis_status: ["draft", "published", "archived"],
     },
   },
 } as const
