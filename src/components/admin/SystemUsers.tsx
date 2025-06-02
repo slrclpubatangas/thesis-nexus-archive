@@ -114,7 +114,7 @@ const SystemUsers = () => {
       />
 
       <UserTable 
-        users={users}
+        users={filteredUsers}
         filteredUsers={filteredUsers}
       />
 

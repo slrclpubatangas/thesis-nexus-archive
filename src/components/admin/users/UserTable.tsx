@@ -5,7 +5,7 @@ import { useAuth } from '../../../hooks/useAuth';
 import { useToast } from '../../../hooks/use-toast';
 
 interface UserData {
-  id: number;
+  id: string;
   name: string;
   email: string;
   role: string;
@@ -23,7 +23,7 @@ const UserTable: React.FC<UserTableProps> = ({ filteredUsers }) => {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const handleEditUser = (userId: number) => {
+  const handleEditUser = (userId: string) => {
     const userToEdit = filteredUsers.find(u => u.id === userId);
     if (userToEdit?.role === 'Admin' && userToEdit.email !== user?.email) {
       toast({
@@ -36,7 +36,7 @@ const UserTable: React.FC<UserTableProps> = ({ filteredUsers }) => {
     console.log('Editing user:', userId);
   };
 
-  const handleDeleteUser = (userId: number) => {
+  const handleDeleteUser = (userId: string) => {
     const userToDelete = filteredUsers.find(u => u.id === userId);
     if (userToDelete?.role === 'Admin') {
       toast({

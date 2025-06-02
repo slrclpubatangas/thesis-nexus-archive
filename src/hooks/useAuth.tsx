@@ -120,7 +120,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const createUser = async (email: string, password: string, fullName: string) => {
+  const createUser = async (email: string, password: string, fullName: string): Promise<void> => {
     try {
       console.log('Creating new user:', email);
       
@@ -140,7 +140,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       console.log('User created successfully:', data.user?.email);
-      return data;
     } catch (error) {
       console.error('User creation failed:', error);
       throw error;
