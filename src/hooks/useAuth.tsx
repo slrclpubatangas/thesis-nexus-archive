@@ -9,6 +9,7 @@ interface AuthContextType {
   userRole: string | null;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => void;
+  createUser: (email: string, password: string, fullName: string) => Promise<void>;
   loading: boolean;
 }
 
@@ -32,16 +33,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Function to determine user role based on email or fetch from database
-  const getUserRole = async (userEmail: string) => {
-    // For now, we'll use email-based role assignment
-    // In a real application, you would fetch this from a user_roles table
-    if (userEmail === 'admin@lpu.edu.ph') {
-      return 'admin';
+  // Function to fetch user role from profiles table
+  const fetchUserRole = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', userId)
+        .single();
+
+      if (error) {
+        console.error('Error fetching user role:', error);
+        return 'reader'; // Default to reader role
+      }
+
+      return data?.role || 'reader';
+    } catch (error) {
+      console.error('Error in fetchUserRole:', error);
+      return 'reader';
     }
-    
-    // Default to reader role for new users
-    return 'reader';
   };
 
   useEffect(() => {
@@ -52,8 +62,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setSession(session);
         setUser(session?.user ?? null);
         
-        if (session?.user?.email) {
-          const role = await getUserRole(session.user.email);
+        if (session?.user?.id) {
+          const role = await fetchUserRole(session.user.id);
           setUserRole(role);
           console.log('User role determined:', role);
         } else {
@@ -70,8 +80,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setSession(session);
       setUser(session?.user ?? null);
       
-      if (session?.user?.email) {
-        const role = await getUserRole(session.user.email);
+      if (session?.user?.id) {
+        const role = await fetchUserRole(session.user.id);
         setUserRole(role);
         console.log('Initial user role:', role);
       } else {
@@ -110,6 +120,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  const createUser = async (email: string, password: string, fullName: string) => {
+    try {
+      console.log('Creating new user:', email);
+      
+      const { data, error } = await supabase.auth.admin.createUser({
+        email,
+        password,
+        user_metadata: {
+          full_name: fullName,
+          role: 'reader'
+        },
+        email_confirm: false // Skip email confirmation for admin-created users
+      });
+
+      if (error) {
+        console.error('User creation error:', error);
+        throw error;
+      }
+
+      console.log('User created successfully:', data.user?.email);
+      return data;
+    } catch (error) {
+      console.error('User creation failed:', error);
+      throw error;
+    }
+  };
+
   const signOut = async () => {
     try {
       console.log('Signing out...');
@@ -130,7 +167,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, userRole, signIn, signOut, loading }}>
+    <AuthContext.Provider value={{ user, session, userRole, signIn, signOut, createUser, loading }}>
       {children}
     </AuthContext.Provider>
   );
