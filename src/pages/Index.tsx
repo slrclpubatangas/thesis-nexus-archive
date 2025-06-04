@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import Header from '../components/Header';
 import SubmissionForm from '../components/SubmissionForm';
-import AdminDashboard from '../components/admin/AdminDashboard';
+import RoleBasedDashboard from '../components/admin/RoleBasedDashboard';
 import LoginModal from '../components/LoginModal';
 import { useAuth } from '../hooks/useAuth';
 
@@ -33,7 +33,7 @@ const Index = () => {
       
       {/* Main Content */}
       {user && session ? (
-        <AdminDashboard />
+        <RoleBasedDashboard />
       ) : (
         <SubmissionForm />
       )}
