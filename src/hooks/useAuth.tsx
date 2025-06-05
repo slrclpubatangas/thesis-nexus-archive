@@ -42,92 +42,121 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchUserProfile = async (userId: string) => {
+  const fetchUserProfile = async (userId: string, retryCount = 0) => {
     try {
-      console.log('Fetching profile for user ID:', userId);
+      console.log('Fetching profile for user ID:', userId, 'Retry:', retryCount);
       
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error('Error fetching profile:', error);
-        
-        // If no profile exists, create one for admin users
-        if (error.code === 'PGRST116') {
-          console.log('No profile found, creating one...');
-          const { data: userData } = await supabase.auth.getUser();
-          if (userData.user) {
-            const isAdmin = userData.user.email === 'thevinz1172@gmail.com' || 
-                           userData.user.email?.includes('@lpu.edu.ph');
-            
-            const { data: newProfile, error: insertError } = await supabase
-              .from('profiles')
-              .insert({
-                id: userId,
-                email: userData.user.email || '',
-                full_name: userData.user.user_metadata?.full_name || 'Admin User',
-                role: isAdmin ? 'admin' : 'reader'
-              })
-              .select()
-              .single();
+        return null;
+      }
 
-            if (insertError) {
-              console.error('Error creating profile:', insertError);
-              return;
+      if (!data) {
+        console.log('No profile found, creating one...');
+        const { data: userData } = await supabase.auth.getUser();
+        if (userData.user) {
+          const isAdmin = userData.user.email === 'thevinz1172@gmail.com' || 
+                         userData.user.email?.includes('@lpu.edu.ph');
+          
+          const { data: newProfile, error: insertError } = await supabase
+            .from('profiles')
+            .insert({
+              id: userId,
+              email: userData.user.email || '',
+              full_name: userData.user.user_metadata?.full_name || 'Admin User',
+              role: isAdmin ? 'admin' : 'reader'
+            })
+            .select()
+            .single();
+
+          if (insertError) {
+            console.error('Error creating profile:', insertError);
+            // If creation fails and we haven't retried too many times, try again
+            if (retryCount < 2) {
+              console.log('Retrying profile creation...');
+              setTimeout(() => {
+                fetchUserProfile(userId, retryCount + 1);
+              }, 1000);
             }
-
-            console.log('Created new profile:', newProfile);
-            setProfile(newProfile);
+            return null;
           }
+
+          console.log('Created new profile:', newProfile);
+          setProfile(newProfile);
+          return newProfile;
         }
-        return;
+        return null;
       }
 
       console.log('Profile fetched successfully:', data);
       setProfile(data);
+      return data;
     } catch (error) {
       console.error('Error in fetchUserProfile:', error);
+      return null;
     }
   };
 
   useEffect(() => {
     console.log('Setting up auth listener...');
     
-    // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('Auth state changed:', event, session?.user?.email);
+    // Get initial session first
+    const getInitialSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('Error getting initial session:', error);
+          setLoading(false);
+          return;
+        }
+
+        console.log('Initial session check:', session?.user?.email);
         setSession(session);
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          // Fetch user profile when authenticated
-          setTimeout(() => {
-            fetchUserProfile(session.user.id);
-          }, 100);
-        } else {
-          setProfile(null);
+          await fetchUserProfile(session.user.id);
         }
         
         setLoading(false);
+      } catch (error) {
+        console.error('Error in getInitialSession:', error);
+        setLoading(false);
+      }
+    };
+
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('Auth state changed:', event, session?.user?.email);
+        
+        setSession(session);
+        setUser(session?.user ?? null);
+        
+        if (session?.user && event === 'SIGNED_IN') {
+          // Small delay to ensure the session is fully established
+          setTimeout(async () => {
+            await fetchUserProfile(session.user.id);
+          }, 200);
+        } else if (event === 'SIGNED_OUT') {
+          setProfile(null);
+        }
+        
+        if (event !== 'INITIAL_SESSION') {
+          setLoading(false);
+        }
       }
     );
 
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('Initial session check:', session?.user?.email);
-      setSession(session);
-      setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        fetchUserProfile(session.user.id);
-      }
-      
-      setLoading(false);
-    });
+    // Get initial session
+    getInitialSession();
 
     return () => {
       console.log('Cleaning up auth subscription');
@@ -138,6 +167,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const signIn = async (email: string, password: string) => {
     try {
       console.log('Attempting to sign in with:', email);
+      setLoading(true);
       
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -153,6 +183,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // The onAuthStateChange listener will handle updating the state
     } catch (error) {
       console.error('Sign in failed:', error);
+      setLoading(false);
       throw error;
     }
   };
@@ -186,19 +217,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const signOut = async () => {
     try {
       console.log('Signing out...');
+      setLoading(true);
+      
       const { error } = await supabase.auth.signOut();
       if (error) {
         console.error('Sign out error:', error);
         throw error;
       }
+      
       console.log('Sign out successful');
-      // The onAuthStateChange listener will handle updating the state
+      // Clear state immediately
+      setSession(null);
+      setUser(null);
+      setProfile(null);
+      setLoading(false);
     } catch (error) {
       console.error('Sign out failed:', error);
       // Force clear state even if signOut fails
       setSession(null);
       setUser(null);
       setProfile(null);
+      setLoading(false);
     }
   };
 

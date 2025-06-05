@@ -24,24 +24,25 @@ const RoleBasedDashboard = () => {
     );
   }
 
+  // If user is authenticated but no profile exists, show profile setup message
   if (!profile && user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center max-w-md">
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
             <h3 className="text-lg font-semibold text-yellow-800 mb-2">
-              Profile Setup Required
+              Profile Setup in Progress
             </h3>
             <p className="text-yellow-700 mb-4">
-              Your account ({user.email}) needs a profile setup. Please refresh the page or contact an administrator.
+              Setting up your profile for {user.email}. This should complete automatically.
             </p>
-            <div className="text-sm text-yellow-600">
+            <div className="text-sm text-yellow-600 mb-4">
               <p>User ID: {user.id}</p>
               <p>Email: {user.email}</p>
             </div>
             <button 
               onClick={() => window.location.reload()} 
-              className="mt-4 btn-primary"
+              className="btn-primary"
             >
               Refresh Page
             </button>
@@ -51,20 +52,21 @@ const RoleBasedDashboard = () => {
     );
   }
 
-  if (!profile) {
+  // If no user and no profile, redirect to main page
+  if (!profile && !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <p className="text-gray-600">Unable to load user profile</p>
+          <p className="text-gray-600">Please log in to access the dashboard</p>
         </div>
       </div>
     );
   }
 
-  // Redirect based on user role
-  if (profile.role === 'admin') {
+  // Profile exists, render appropriate dashboard
+  if (profile?.role === 'admin') {
     return <AdminDashboard />;
-  } else if (profile.role === 'reader') {
+  } else if (profile?.role === 'reader') {
     return <ReaderDashboard />;
   }
 
