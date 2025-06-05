@@ -1,59 +1,178 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, Search, Edit, Trash2, Shield, User, Mail, Calendar } from 'lucide-react';
+import { supabase } from '../../integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+
+interface SystemUser {
+  id: string;
+  name: string;
+  email: string;
+  role: 'Admin' | 'Reader';
+  status: 'Active' | 'Inactive';
+  last_login: string | null;
+  created_at: string;
+}
 
 const SystemUsers = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddUser, setShowAddUser] = useState(false);
+  const [users, setUsers] = useState<SystemUser[]>([]);
+  const [loading, setLoading] = useState(true);
   const [newUser, setNewUser] = useState({
     name: '',
     email: '',
-    role: 'admin',
-    status: 'active'
+    role: 'Reader' as 'Admin' | 'Reader',
+    status: 'Active' as 'Active' | 'Inactive'
   });
+  const { toast } = useToast();
 
-  // Sample users data
-  const users = [
-    {
-      id: 1,
-      name: 'Admin User',
-      email: 'admin@lpu.edu.ph',
-      role: 'Super Admin',
-      status: 'Active',
-      lastLogin: '2024-01-15 10:30 AM',
-      created: '2023-01-01'
-    },
-    {
-      id: 2,
-      name: 'John Manager',
-      email: 'john.manager@lpu.edu.ph',
-      role: 'Admin',
-      status: 'Active',
-      lastLogin: '2024-01-14 2:15 PM',
-      created: '2023-06-15'
-    },
-    {
-      id: 3,
-      name: 'Sarah Coordinator',
-      email: 'sarah.coordinator@lpu.edu.ph',
-      role: 'Moderator',
-      status: 'Inactive',
-      lastLogin: '2024-01-10 9:45 AM',
-      created: '2023-09-01'
-    },
-  ];
+  // Fetch users from database
+  const fetchUsers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('system_users')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching users:', error);
+        toast({
+          title: "Error",
+          description: "Failed to fetch users",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setUsers(data || []);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch users",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
 
   const filteredUsers = users.filter(user =>
     user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleAddUser = (e: React.FormEvent) => {
+  const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Adding new user:', newUser);
-    setShowAddUser(false);
-    setNewUser({ name: '', email: '', role: 'admin', status: 'active' });
+    
+    if (!newUser.name || !newUser.email) {
+      toast({
+        title: "Error",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('system_users')
+        .insert([{
+          name: newUser.name,
+          email: newUser.email,
+          role: newUser.role,
+          status: newUser.status
+        }])
+        .select();
+
+      if (error) {
+        console.error('Error adding user:', error);
+        toast({
+          title: "Error",
+          description: error.message || "Failed to add user",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Success",
+        description: "User added successfully",
+      });
+
+      setShowAddUser(false);
+      setNewUser({ name: '', email: '', role: 'Reader', status: 'Active' });
+      fetchUsers(); // Refresh the list
+    } catch (error) {
+      console.error('Error adding user:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add user",
+        variant: "destructive",
+      });
+    }
   };
+
+  const handleDeleteUser = async (userId: string) => {
+    if (!confirm('Are you sure you want to delete this user?')) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('system_users')
+        .delete()
+        .eq('id', userId);
+
+      if (error) {
+        console.error('Error deleting user:', error);
+        toast({
+          title: "Error",
+          description: "Failed to delete user",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Success",
+        description: "User deleted successfully",
+      });
+
+      fetchUsers(); // Refresh the list
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete user",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'Never';
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -91,7 +210,7 @@ const SystemUsers = () => {
           <form onSubmit={handleAddUser} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Full Name
+                Full Name *
               </label>
               <input
                 type="text"
@@ -103,7 +222,7 @@ const SystemUsers = () => {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Email Address
+                Email Address *
               </label>
               <input
                 type="email"
@@ -119,12 +238,11 @@ const SystemUsers = () => {
               </label>
               <select
                 value={newUser.role}
-                onChange={(e) => setNewUser({...newUser, role: e.target.value})}
+                onChange={(e) => setNewUser({...newUser, role: e.target.value as 'Admin' | 'Reader'})}
                 className="select-field"
               >
-                <option value="admin">Admin</option>
-                <option value="moderator">Moderator</option>
-                <option value="viewer">Viewer</option>
+                <option value="Reader">Reader</option>
+                <option value="Admin">Admin</option>
               </select>
             </div>
             <div>
@@ -133,11 +251,11 @@ const SystemUsers = () => {
               </label>
               <select
                 value={newUser.status}
-                onChange={(e) => setNewUser({...newUser, status: e.target.value})}
+                onChange={(e) => setNewUser({...newUser, status: e.target.value as 'Active' | 'Inactive'})}
                 className="select-field"
               >
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
               </select>
             </div>
             <div className="md:col-span-2 flex space-x-3">
@@ -216,7 +334,7 @@ const SystemUsers = () => {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center text-sm text-gray-900">
                       <Calendar className="h-4 w-4 text-gray-400 mr-2" />
-                      {user.lastLogin}
+                      {formatDate(user.last_login)}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -224,7 +342,10 @@ const SystemUsers = () => {
                       <button className="text-blue-600 hover:text-blue-900">
                         <Edit size={16} />
                       </button>
-                      <button className="text-red-600 hover:text-red-900">
+                      <button 
+                        onClick={() => handleDeleteUser(user.id)}
+                        className="text-red-600 hover:text-red-900"
+                      >
                         <Trash2 size={16} />
                       </button>
                     </div>
@@ -234,6 +355,12 @@ const SystemUsers = () => {
             </tbody>
           </table>
         </div>
+        
+        {filteredUsers.length === 0 && (
+          <div className="text-center py-8 text-gray-500">
+            No users found
+          </div>
+        )}
       </div>
 
       {/* Summary */}
