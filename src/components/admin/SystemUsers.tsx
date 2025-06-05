@@ -3,9 +3,11 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Search, Edit, Trash2, Shield, User, Mail, Calendar } from 'lucide-react';
 import { supabase } from '../../integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '../../hooks/useAuth';
 
 interface SystemUser {
   id: string;
+  user_id: string;
   name: string;
   email: string;
   role: 'Admin' | 'Reader';
@@ -26,6 +28,7 @@ const SystemUsers = () => {
     status: 'Active' as 'Active' | 'Inactive'
   });
   const { toast } = useToast();
+  const { user: currentUser } = useAuth();
 
   // Fetch users from database
   const fetchUsers = async () => {
@@ -79,10 +82,23 @@ const SystemUsers = () => {
       return;
     }
 
+    if (!currentUser) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to add users",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
+      // Generate a UUID for the new user (this will be their auth user_id when they sign up)
+      const newUserId = crypto.randomUUID();
+      
       const { data, error } = await supabase
         .from('system_users')
         .insert([{
+          user_id: newUserId,
           name: newUser.name,
           email: newUser.email,
           role: newUser.role,

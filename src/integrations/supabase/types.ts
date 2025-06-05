@@ -18,6 +18,7 @@ export type Database = {
           name: string
           role: Database["public"]["Enums"]["user_role"]
           status: Database["public"]["Enums"]["user_status"]
+          user_id: string
         }
         Insert: {
           created_at?: string
@@ -27,6 +28,7 @@ export type Database = {
           name: string
           role: Database["public"]["Enums"]["user_role"]
           status?: Database["public"]["Enums"]["user_status"]
+          user_id: string
         }
         Update: {
           created_at?: string
@@ -36,6 +38,7 @@ export type Database = {
           name?: string
           role?: Database["public"]["Enums"]["user_role"]
           status?: Database["public"]["Enums"]["user_status"]
+          user_id?: string
         }
         Relationships: []
       }
@@ -119,7 +122,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_admin_user: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
     }
     Enums: {
       thesis_status: "draft" | "published" | "archived"
