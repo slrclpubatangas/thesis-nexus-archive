@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, Edit, Trash2, Shield, User, Mail, Calendar } from 'lucide-react';
 import { supabase } from '../../integrations/supabase/client';
@@ -92,13 +91,41 @@ const SystemUsers = () => {
     }
 
     try {
-      // Generate a UUID for the new user (this will be their auth user_id when they sign up)
-      const newUserId = crypto.randomUUID();
-      
+      // First, create the auth user using Supabase Admin API
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: newUser.email,
+        password: 'TempPassword123!', // You might want to generate a random password
+        options: {
+          data: {
+            full_name: newUser.name
+          }
+        }
+      });
+
+      if (authError) {
+        console.error('Error creating auth user:', authError);
+        toast({
+          title: "Error",
+          description: authError.message || "Failed to create user account",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (!authData.user) {
+        toast({
+          title: "Error",
+          description: "Failed to create user account",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Now create the system user record with the actual auth user ID
       const { data, error } = await supabase
         .from('system_users')
         .insert([{
-          user_id: newUserId,
+          user_id: authData.user.id,
           name: newUser.name,
           email: newUser.email,
           role: newUser.role,
@@ -107,7 +134,9 @@ const SystemUsers = () => {
         .select();
 
       if (error) {
-        console.error('Error adding user:', error);
+        console.error('Error adding system user:', error);
+        // If system user creation fails, we should clean up the auth user
+        await supabase.auth.admin.deleteUser(authData.user.id);
         toast({
           title: "Error",
           description: error.message || "Failed to add user",
@@ -118,7 +147,7 @@ const SystemUsers = () => {
 
       toast({
         title: "Success",
-        description: "User added successfully",
+        description: `User created successfully. Temporary password: TempPassword123!`,
       });
 
       setShowAddUser(false);
