@@ -1,463 +1,256 @@
 
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
-import { Users, FileText, TrendingUp, Clock } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
+import { Users, FileText, TrendingUp, Calendar, School, BookOpen } from 'lucide-react';
+import { supabase } from '../../integrations/supabase/client';
 
-const StatisticsTab = () => {
-  const [stats, setStats] = useState({
+interface StatisticsTabProps {
+  userRole?: 'Admin' | 'Reader' | null;
+}
+
+interface StatsData {
+  totalSubmissions: number;
+  totalUsers: number;
+  recentSubmissions: number;
+  lpuStudents: number;
+  nonLpuStudents: number;
+  campusData: Array<{ name: string; value: number }>;
+  monthlyData: Array<{ month: string; submissions: number }>;
+}
+
+const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
+  const [stats, setStats] = useState<StatsData>({
     totalSubmissions: 0,
-    totalTheses: 0,
+    totalUsers: 0,
+    recentSubmissions: 0,
     lpuStudents: 0,
-    nonLpuStudents: 0
+    nonLpuStudents: 0,
+    campusData: [],
+    monthlyData: []
   });
-
-  const [submissionTrends, setSubmissionTrends] = useState([]);
-  const [popularTopics, setPopularTopics] = useState([]);
-  const [userDistribution, setUserDistribution] = useState([]);
-  const [recentActivity, setRecentActivity] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchStatistics();
-    fetchSubmissionTrends();
-    fetchPopularTopics();
-    fetchUserDistribution();
-    fetchRecentActivity();
   }, []);
 
   const fetchStatistics = async () => {
     try {
+      setLoading(true);
+
       // Fetch total submissions
-      const { count: totalSubmissions } = await supabase
+      const { data: submissions, error: submissionsError } = await supabase
         .from('thesis_submissions')
-        .select('*', { count: 'exact', head: true });
+        .select('*');
 
-      // Fetch total theses
-      const { count: totalTheses } = await supabase
-        .from('thesis_data')
-        .select('*', { count: 'exact', head: true });
+      if (submissionsError) throw submissionsError;
 
-      // Fetch LPU students count
-      const { count: lpuStudents } = await supabase
-        .from('thesis_submissions')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_type', 'LPU Student');
+      // Calculate statistics
+      const totalSubmissions = submissions?.length || 0;
+      const lpuStudents = submissions?.filter(s => s.user_type === 'LPU Student').length || 0;
+      const nonLpuStudents = submissions?.filter(s => s.user_type === 'Non-LPU Student').length || 0;
 
-      // Fetch Non-LPU students count
-      const { count: nonLpuStudents } = await supabase
-        .from('thesis_submissions')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_type', 'Non-LPU Student');
+      // Recent submissions (last 30 days)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const recentSubmissions = submissions?.filter(s => 
+        new Date(s.submission_date) >= thirtyDaysAgo
+      ).length || 0;
+
+      // Campus distribution
+      const campusCount = submissions?.reduce((acc, submission) => {
+        acc[submission.campus] = (acc[submission.campus] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>) || {};
+
+      const campusData = Object.entries(campusCount).map(([name, value]) => ({
+        name,
+        value
+      }));
+
+      // Monthly data for the last 6 months
+      const monthlyCount = submissions?.reduce((acc, submission) => {
+        const date = new Date(submission.submission_date);
+        const monthKey = date.toLocaleString('default', { month: 'short', year: 'numeric' });
+        acc[monthKey] = (acc[monthKey] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>) || {};
+
+      const monthlyData = Object.entries(monthlyCount)
+        .map(([month, submissions]) => ({ month, submissions }))
+        .slice(-6);
+
+      // Fetch system users count if user is Admin
+      let totalUsers = 0;
+      if (userRole === 'Admin') {
+        const { data: users, error: usersError } = await supabase
+          .from('system_users')
+          .select('id');
+        
+        if (!usersError) {
+          totalUsers = users?.length || 0;
+        }
+      }
 
       setStats({
-        totalSubmissions: totalSubmissions || 0,
-        totalTheses: totalTheses || 0,
-        lpuStudents: lpuStudents || 0,
-        nonLpuStudents: nonLpuStudents || 0
+        totalSubmissions,
+        totalUsers,
+        recentSubmissions,
+        lpuStudents,
+        nonLpuStudents,
+        campusData,
+        monthlyData
       });
     } catch (error) {
       console.error('Error fetching statistics:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const fetchSubmissionTrends = async () => {
-    try {
-      const { data } = await supabase
-        .from('thesis_submissions')
-        .select('submission_date')
-        .order('submission_date', { ascending: true });
+  const COLORS = ['#dc2626', '#ea580c', '#d97706', '#ca8a04', '#65a30d', '#16a34a'];
 
-      if (data) {
-        // Group by month
-        const monthlyData = data.reduce((acc, submission) => {
-          const month = new Date(submission.submission_date).toLocaleDateString('en-US', { 
-            year: 'numeric', 
-            month: 'short' 
-          });
-          acc[month] = (acc[month] || 0) + 1;
-          return acc;
-        }, {});
-
-        const trends = Object.entries(monthlyData).map(([month, count]) => ({
-          month,
-          submissions: count
-        }));
-
-        setSubmissionTrends(trends);
-      }
-    } catch (error) {
-      console.error('Error fetching submission trends:', error);
-    }
-  };
-
-  const fetchPopularTopics = async () => {
-    try {
-      const { data } = await supabase
-        .from('thesis_data')
-        .select('department');
-
-      if (data) {
-        const departmentCounts = data.reduce((acc, thesis) => {
-          acc[thesis.department] = (acc[thesis.department] || 0) + 1;
-          return acc;
-        }, {});
-
-        const topics = Object.entries(departmentCounts)
-          .map(([department, count]) => ({
-            department,
-            count: count as number
-          }))
-          .sort((a, b) => b.count - a.count)
-          .slice(0, 10);
-
-        setPopularTopics(topics);
-      }
-    } catch (error) {
-      console.error('Error fetching popular topics:', error);
-    }
-  };
-
-  const fetchUserDistribution = async () => {
-    try {
-      const { data } = await supabase
-        .from('thesis_submissions')
-        .select('user_type, campus');
-
-      if (data) {
-        const distribution = data.reduce((acc, submission) => {
-          const key = `${submission.user_type} - ${submission.campus}`;
-          acc[key] = (acc[key] || 0) + 1;
-          return acc;
-        }, {});
-
-        const chartData = Object.entries(distribution).map(([category, count]) => ({
-          category,
-          count: count as number
-        }));
-
-        setUserDistribution(chartData);
-      }
-    } catch (error) {
-      console.error('Error fetching user distribution:', error);
-    }
-  };
-
-  const fetchRecentActivity = async () => {
-    try {
-      const { data } = await supabase
-        .from('thesis_submissions')
-        .select('full_name, thesis_title, submission_date, user_type')
-        .order('submission_date', { ascending: false })
-        .limit(5);
-
-      setRecentActivity(data || []);
-    } catch (error) {
-      console.error('Error fetching recent activity:', error);
-    }
-  };
-
-  const COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6'];
-
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-white p-3 border border-gray-300 rounded-lg shadow-lg">
-          <p className="text-gray-800 font-medium">{`${label}`}</p>
-          {payload.map((entry: any, index: number) => (
-            <p key={index} className="text-gray-600" style={{ color: entry.color }}>
-              {`${entry.dataKey}: ${entry.value}`}
-            </p>
-          ))}
-        </div>
-      );
-    }
-    return null;
-  };
-
-  const CustomLegend = ({ payload }: any) => {
+  if (loading) {
     return (
-      <ul className="flex justify-center flex-wrap gap-4 mt-4">
-        {payload.map((entry: any, index: number) => (
-          <li key={index} className="flex items-center gap-2">
-            <span 
-              className="w-3 h-3 rounded-full" 
-              style={{ backgroundColor: entry.color }}
-            ></span>
-            <span className="text-sm text-gray-600">{entry.value}</span>
-          </li>
-        ))}
-      </ul>
+      <div className="flex items-center justify-center py-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
+        <span className="ml-2 text-gray-600">Loading statistics...</span>
+      </div>
     );
-  };
-
-  const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) => {
-    const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-    const x = cx + radius * Math.cos(-midAngle * Math.PI / 180);
-    const y = cy + radius * Math.sin(-midAngle * Math.PI / 180);
-
-    return (
-      <text 
-        x={x} 
-        y={y} 
-        fill="white" 
-        textAnchor={x > cx ? 'start' : 'end'} 
-        dominantBaseline="central"
-        className="text-xs font-medium"
-      >
-        {`${(percent * 100).toFixed(0)}%`}
-      </text>
-    );
-  };
+  }
 
   return (
-    <div className="space-y-8">
-      {/* Key Statistics */}
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-800">Statistics Dashboard</h2>
+          <p className="text-gray-600">
+            {userRole === 'Reader' ? 'View thesis submission analytics' : 'Overview of thesis submissions and system analytics'}
+          </p>
+        </div>
+        <button 
+          onClick={fetchStatistics}
+          className="btn-secondary flex items-center space-x-2"
+          disabled={loading}
+        >
+          <TrendingUp size={16} />
+          <span>Refresh</span>
+        </button>
+      </div>
+
+      {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-blue-700">Total Submissions</CardTitle>
-            <FileText className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-800">{stats.totalSubmissions}</div>
-            <p className="text-xs text-blue-600 mt-1">
-              User record submissions
-            </p>
-          </CardContent>
-        </Card>
+        <div className="card-hover p-6 text-center">
+          <div className="flex items-center justify-center w-12 h-12 bg-red-100 rounded-lg mx-auto mb-4">
+            <FileText className="h-6 w-6 text-red-600" />
+          </div>
+          <div className="text-2xl font-bold text-gray-800">{stats.totalSubmissions}</div>
+          <div className="text-sm text-gray-600">Total Submissions</div>
+        </div>
 
-        <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-green-700">Total Theses</CardTitle>
-            <FileText className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-800">{stats.totalTheses}</div>
-            <p className="text-xs text-green-600 mt-1">
-              In database collection
-            </p>
-          </CardContent>
-        </Card>
+        {userRole === 'Admin' && (
+          <div className="card-hover p-6 text-center">
+            <div className="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-lg mx-auto mb-4">
+              <Users className="h-6 w-6 text-blue-600" />
+            </div>
+            <div className="text-2xl font-bold text-gray-800">{stats.totalUsers}</div>
+            <div className="text-sm text-gray-600">System Users</div>
+          </div>
+        )}
 
-        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-purple-700">LPU Students</CardTitle>
-            <Users className="h-4 w-4 text-purple-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-purple-800">{stats.lpuStudents}</div>
-            <p className="text-xs text-purple-600 mt-1">
-              Internal users
-            </p>
-          </CardContent>
-        </Card>
+        <div className="card-hover p-6 text-center">
+          <div className="flex items-center justify-center w-12 h-12 bg-green-100 rounded-lg mx-auto mb-4">
+            <Calendar className="h-6 w-6 text-green-600" />
+          </div>
+          <div className="text-2xl font-bold text-gray-800">{stats.recentSubmissions}</div>
+          <div className="text-sm text-gray-600">Last 30 Days</div>
+        </div>
 
-        <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-orange-700">External Users</CardTitle>
-            <Users className="h-4 w-4 text-orange-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-800">{stats.nonLpuStudents}</div>
-            <p className="text-xs text-orange-600 mt-1">
-              Non-LPU students
-            </p>
-          </CardContent>
-        </Card>
+        <div className="card-hover p-6 text-center">
+          <div className="flex items-center justify-center w-12 h-12 bg-purple-100 rounded-lg mx-auto mb-4">
+            <School className="h-6 w-6 text-purple-600" />
+          </div>
+          <div className="text-2xl font-bold text-gray-800">{stats.lpuStudents}</div>
+          <div className="text-sm text-gray-600">LPU Students</div>
+        </div>
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Submission Trends */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-blue-600" />
-              Submission Trends
-            </CardTitle>
-            <CardDescription>
-              Monthly submission patterns over time
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={submissionTrends}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis 
-                  dataKey="month" 
-                  stroke="#6b7280"
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <YAxis 
-                  stroke="#6b7280"
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend content={<CustomLegend />} />
-                <Line 
-                  type="monotone" 
-                  dataKey="submissions" 
-                  stroke="#3b82f6" 
-                  strokeWidth={3}
-                  dot={{ fill: '#3b82f6', strokeWidth: 2, r: 6 }}
-                  activeDot={{ r: 8, stroke: '#3b82f6', strokeWidth: 2 }}
-                  name="Submissions"
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* User Type Distribution */}
+        <div className="card-hover p-6">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">Student Type Distribution</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <PieChart>
+              <Pie
+                data={[
+                  { name: 'LPU Students', value: stats.lpuStudents },
+                  { name: 'Non-LPU Students', value: stats.nonLpuStudents }
+                ]}
+                cx="50%"
+                cy="50%"
+                outerRadius={80}
+                fill="#8884d8"
+                dataKey="value"
+                label
+              >
+                <Cell fill="#dc2626" />
+                <Cell fill="#2563eb" />
+              </Pie>
+              <Tooltip />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
 
-        {/* Popular Research Topics */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-green-600" />
-              Popular Research Topics
-            </CardTitle>
-            <CardDescription>
-              Most active research departments
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={popularTopics} layout="horizontal">
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis 
-                  type="number" 
-                  stroke="#6b7280"
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <YAxis 
-                  type="category" 
-                  dataKey="department" 
-                  stroke="#6b7280"
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={false}
-                  width={120}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend content={<CustomLegend />} />
-                <Bar 
-                  dataKey="count" 
-                  fill="#22c55e"
-                  radius={[0, 4, 4, 0]}
-                  name="Thesis Count"
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+        {/* Campus Distribution */}
+        <div className="card-hover p-6">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">Campus Distribution</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={stats.campusData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="name" />
+              <YAxis />
+              <Tooltip />
+              <Bar dataKey="value" fill="#dc2626" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* User Distribution */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-purple-600" />
-              User Distribution
-            </CardTitle>
-            <CardDescription>
-              User types and campus distribution
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={userDistribution}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={renderCustomizedLabel}
-                  outerRadius={100}
-                  fill="#8884d8"
-                  dataKey="count"
-                >
-                  {userDistribution.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip content={<CustomTooltip />} />
-                <Legend 
-                  content={(props) => (
-                    <div className="mt-4">
-                      <div className="grid grid-cols-1 gap-2">
-                        {userDistribution.map((entry: any, index: number) => (
-                          <div key={index} className="flex items-center gap-2 text-sm">
-                            <span 
-                              className="w-3 h-3 rounded-full" 
-                              style={{ backgroundColor: COLORS[index % COLORS.length] }}
-                            ></span>
-                            <span className="text-gray-600 truncate">{entry.category} ({entry.count})</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+      {/* Monthly Trend */}
+      <div className="card-hover p-6">
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">Monthly Submission Trend</h3>
+        <ResponsiveContainer width="100%" height={300}>
+          <LineChart data={stats.monthlyData}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="month" />
+            <YAxis />
+            <Tooltip />
+            <Line type="monotone" dataKey="submissions" stroke="#dc2626" strokeWidth={2} />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
 
-        {/* Recent Activity */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-orange-600" />
-              Recent Activity
-            </CardTitle>
-            <CardDescription>
-              Latest thesis submissions
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {recentActivity.length > 0 ? (
-                recentActivity.map((activity, index) => (
-                  <div key={index} className="flex items-start space-x-3 p-3 rounded-lg bg-gray-50">
-                    <div className="flex-shrink-0">
-                      <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                        <FileText className="w-4 h-4 text-blue-600" />
-                      </div>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">
-                        {activity.full_name}
-                      </p>
-                      <p className="text-sm text-gray-500 truncate">
-                        {activity.thesis_title}
-                      </p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                          {activity.user_type}
-                        </span>
-                        <span className="text-xs text-gray-400">
-                          {new Date(activity.submission_date).toLocaleDateString()}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  <FileText className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                  <p>No recent activity</p>
-                </div>
-              )}
+      {/* Summary Info */}
+      <div className="card-hover p-6">
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">Quick Summary</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <div className="font-medium text-gray-800">Total Submissions</div>
+            <div className="text-gray-600">{stats.totalSubmissions} thesis records</div>
+          </div>
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <div className="font-medium text-gray-800">Student Distribution</div>
+            <div className="text-gray-600">
+              {stats.lpuStudents} LPU, {stats.nonLpuStudents} Non-LPU
             </div>
-          </CardContent>
-        </Card>
+          </div>
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <div className="font-medium text-gray-800">Recent Activity</div>
+            <div className="text-gray-600">{stats.recentSubmissions} submissions this month</div>
+          </div>
+        </div>
       </div>
     </div>
   );

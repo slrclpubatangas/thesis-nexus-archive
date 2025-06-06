@@ -16,7 +16,11 @@ interface ThesisSubmission {
   submission_date: string;
 }
 
-const UserRecords = () => {
+interface UserRecordsProps {
+  userRole?: 'Admin' | 'Reader' | null;
+}
+
+const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
@@ -91,6 +95,16 @@ const UserRecords = () => {
   };
 
   const handleDelete = async (id: string) => {
+    // Restrict delete action for Reader users
+    if (userRole === 'Reader') {
+      toast({
+        title: "Access Restricted",
+        description: "You don't have permission to delete records.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!confirm('Are you sure you want to delete this record?')) {
       return;
     }
@@ -175,7 +189,7 @@ const UserRecords = () => {
         <div>
           <h2 className="text-2xl font-bold text-gray-800">User Records</h2>
           <p className="text-gray-600">
-            Manage and export thesis submission data ({records.length} total records)
+            {userRole === 'Reader' ? 'View thesis submission data' : 'Manage and export thesis submission data'} ({records.length} total records)
           </p>
         </div>
         <div className="flex gap-2">
@@ -250,15 +264,17 @@ const UserRecords = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Date
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
+                {userRole === 'Admin' && (
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={userRole === 'Admin' ? 8 : 7} className="px-6 py-8 text-center text-gray-500">
                     {records.length === 0 ? (
                       <div>
                         <p className="text-lg font-medium mb-2">No thesis submissions yet</p>
@@ -305,29 +321,31 @@ const UserRecords = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {new Date(record.submission_date).toLocaleDateString()}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex space-x-2">
-                        <button 
-                          className="text-blue-600 hover:text-blue-900"
-                          title="View details"
-                        >
-                          <Eye size={16} />
-                        </button>
-                        <button 
-                          className="text-green-600 hover:text-green-900"
-                          title="Edit record"
-                        >
-                          <Edit size={16} />
-                        </button>
-                        <button 
-                          className="text-red-600 hover:text-red-900"
-                          onClick={() => handleDelete(record.id)}
-                          title="Delete record"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
+                    {userRole === 'Admin' && (
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <div className="flex space-x-2">
+                          <button 
+                            className="text-blue-600 hover:text-blue-900"
+                            title="View details"
+                          >
+                            <Eye size={16} />
+                          </button>
+                          <button 
+                            className="text-green-600 hover:text-green-900"
+                            title="Edit record"
+                          >
+                            <Edit size={16} />
+                          </button>
+                          <button 
+                            className="text-red-600 hover:text-red-900"
+                            onClick={() => handleDelete(record.id)}
+                            title="Delete record"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))
               )}
