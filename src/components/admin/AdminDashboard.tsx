@@ -31,12 +31,13 @@ const AdminDashboard = () => {
       }
 
       try {
+        console.log('Fetching user role for user:', user.id);
         const { data, error } = await supabase
           .from('system_users')
           .select('role')
           .eq('user_id', user.id)
           .eq('status', 'Active')
-          .single();
+          .maybeSingle();
 
         if (error) {
           console.error('Error fetching user role:', error);
@@ -48,9 +49,31 @@ const AdminDashboard = () => {
           return;
         }
 
-        setUserRole(data.role);
+        if (!data) {
+          // User not found in system_users table - check if they have a profile with reader role
+          console.log('User not found in system_users, checking profiles table...');
+          const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', user.id)
+            .maybeSingle();
+
+          if (profileError) {
+            console.error('Error fetching user profile:', profileError);
+          }
+
+          // Default to Reader role if user exists in auth but not in system_users
+          const defaultRole = profileData?.role === 'admin' ? 'Admin' : 'Reader';
+          console.log('Setting default role:', defaultRole);
+          setUserRole(defaultRole);
+        } else {
+          console.log('User role found:', data.role);
+          setUserRole(data.role);
+        }
       } catch (error) {
         console.error('Error fetching user role:', error);
+        // Default to Reader role on any error to allow basic access
+        setUserRole('Reader');
       } finally {
         setLoading(false);
       }
