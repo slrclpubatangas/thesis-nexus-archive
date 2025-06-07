@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
-import { Users, FileText, TrendingUp, Calendar, School, BookOpen } from 'lucide-react';
+import { Users, FileText, TrendingUp, Calendar, School, BookOpen, Star, MessageSquare } from 'lucide-react';
 import { supabase } from '../../integrations/supabase/client';
 
 interface StatisticsTabProps {
@@ -16,6 +16,9 @@ interface StatsData {
   nonLpuStudents: number;
   campusData: Array<{ name: string; value: number }>;
   monthlyData: Array<{ month: string; submissions: number }>;
+  averageRating: number;
+  totalFeedback: number;
+  recentComments: Array<{ user_name: string; comments: string; rating: number; created_at: string }>;
 }
 
 const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
@@ -26,7 +29,10 @@ const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
     lpuStudents: 0,
     nonLpuStudents: 0,
     campusData: [],
-    monthlyData: []
+    monthlyData: [],
+    averageRating: 0,
+    totalFeedback: 0,
+    recentComments: []
   });
   const [loading, setLoading] = useState(true);
 
@@ -80,6 +86,35 @@ const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
         .map(([month, submissions]) => ({ month, submissions }))
         .slice(-6);
 
+      // Fetch feedback statistics
+      const { data: feedback, error: feedbackError } = await supabase
+        .from('library_feedback')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      let averageRating = 0;
+      let totalFeedback = 0;
+      let recentComments: Array<{ user_name: string; comments: string; rating: number; created_at: string }> = [];
+
+      if (!feedbackError && feedback) {
+        totalFeedback = feedback.length;
+        if (totalFeedback > 0) {
+          const totalRating = feedback.reduce((sum, f) => sum + f.rating, 0);
+          averageRating = Math.round((totalRating / totalFeedback) * 10) / 10;
+        }
+        
+        // Get recent comments (last 5 with comments)
+        recentComments = feedback
+          .filter(f => f.comments && f.comments.trim())
+          .slice(0, 5)
+          .map(f => ({
+            user_name: f.user_name || 'Anonymous',
+            comments: f.comments!,
+            rating: f.rating,
+            created_at: f.created_at
+          }));
+      }
+
       // Fetch system users count if user is Admin
       let totalUsers = 0;
       if (userRole === 'Admin') {
@@ -99,7 +134,10 @@ const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
         lpuStudents,
         nonLpuStudents,
         campusData,
-        monthlyData
+        monthlyData,
+        averageRating,
+        totalFeedback,
+        recentComments
       });
     } catch (error) {
       console.error('Error fetching statistics:', error);
@@ -140,7 +178,7 @@ const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
       </div>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         <div className="card-hover p-6 text-center">
           <div className="flex items-center justify-center w-12 h-12 bg-red-100 rounded-lg mx-auto mb-4">
             <FileText className="h-6 w-6 text-red-600" />
@@ -168,11 +206,21 @@ const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
         </div>
 
         <div className="card-hover p-6 text-center">
-          <div className="flex items-center justify-center w-12 h-12 bg-purple-100 rounded-lg mx-auto mb-4">
-            <School className="h-6 w-6 text-purple-600" />
+          <div className="flex items-center justify-center w-12 h-12 bg-yellow-100 rounded-lg mx-auto mb-4">
+            <Star className="h-6 w-6 text-yellow-600" />
           </div>
-          <div className="text-2xl font-bold text-gray-800">{stats.lpuStudents}</div>
-          <div className="text-sm text-gray-600">LPU Students</div>
+          <div className="text-2xl font-bold text-gray-800">
+            {stats.averageRating > 0 ? `${stats.averageRating}/5` : 'N/A'}
+          </div>
+          <div className="text-sm text-gray-600">Average Rating</div>
+        </div>
+
+        <div className="card-hover p-6 text-center">
+          <div className="flex items-center justify-center w-12 h-12 bg-purple-100 rounded-lg mx-auto mb-4">
+            <MessageSquare className="h-6 w-6 text-purple-600" />
+          </div>
+          <div className="text-2xl font-bold text-gray-800">{stats.totalFeedback}</div>
+          <div className="text-sm text-gray-600">Total Feedback</div>
         </div>
       </div>
 
@@ -232,10 +280,39 @@ const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
         </ResponsiveContainer>
       </div>
 
+      {/* Recent Feedback */}
+      {stats.recentComments.length > 0 && (
+        <div className="card-hover p-6">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">Recent User Feedback</h3>
+          <div className="space-y-4">
+            {stats.recentComments.map((comment, index) => (
+              <div key={index} className="border-l-4 border-red-500 pl-4 py-2">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-medium text-gray-800">{comment.user_name}</span>
+                  <div className="flex items-center space-x-1">
+                    {[...Array(5)].map((_, i) => (
+                      <Star
+                        key={i}
+                        size={16}
+                        className={i < comment.rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <p className="text-gray-600 text-sm">{comment.comments}</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {new Date(comment.created_at).toLocaleDateString()}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Summary Info */}
       <div className="card-hover p-6">
         <h3 className="text-lg font-semibold text-gray-800 mb-4">Quick Summary</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
           <div className="bg-gray-50 p-4 rounded-lg">
             <div className="font-medium text-gray-800">Total Submissions</div>
             <div className="text-gray-600">{stats.totalSubmissions} thesis records</div>
@@ -249,6 +326,12 @@ const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
           <div className="bg-gray-50 p-4 rounded-lg">
             <div className="font-medium text-gray-800">Recent Activity</div>
             <div className="text-gray-600">{stats.recentSubmissions} submissions this month</div>
+          </div>
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <div className="font-medium text-gray-800">User Satisfaction</div>
+            <div className="text-gray-600">
+              {stats.averageRating > 0 ? `${stats.averageRating}/5 stars` : 'No ratings yet'}
+            </div>
           </div>
         </div>
       </div>

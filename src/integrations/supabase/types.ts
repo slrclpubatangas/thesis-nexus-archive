@@ -9,6 +9,44 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      library_feedback: {
+        Row: {
+          comments: string | null
+          created_at: string
+          id: string
+          rating: number
+          submission_id: string | null
+          thesis_title: string | null
+          user_name: string | null
+        }
+        Insert: {
+          comments?: string | null
+          created_at?: string
+          id?: string
+          rating: number
+          submission_id?: string | null
+          thesis_title?: string | null
+          user_name?: string | null
+        }
+        Update: {
+          comments?: string | null
+          created_at?: string
+          id?: string
+          rating?: number
+          submission_id?: string | null
+          thesis_title?: string | null
+          user_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "library_feedback_submission_id_fkey"
+            columns: ["submission_id"]
+            isOneToOne: false
+            referencedRelation: "thesis_submissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string | null
