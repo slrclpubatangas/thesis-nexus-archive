@@ -4,7 +4,6 @@ import { FileText, Users, School } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { supabase } from '../integrations/supabase/client';
 import ThesisTitleSearch from './ThesisTitleSearch';
-import FeedbackModal from './FeedbackModal';
 
 const SubmissionForm = () => {
   const [userType, setUserType] = useState<'lpu' | 'non-lpu'>('lpu');
@@ -17,8 +16,6 @@ const SubmissionForm = () => {
     thesisTitle: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
-  const [lastSubmissionId, setLastSubmissionId] = useState<string>('');
   const { toast } = useToast();
 
   const campusOptions = [
@@ -67,11 +64,9 @@ const SubmissionForm = () => {
         submission_date: new Date().toISOString()
       };
 
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('thesis_submissions')
-        .insert([submissionData])
-        .select('id')
-        .single();
+        .insert([submissionData]);
 
       if (error) {
         throw error;
@@ -81,10 +76,6 @@ const SubmissionForm = () => {
         title: "Record Submitted",
         description: "Your thesis record has been successfully submitted.",
       });
-
-      // Store submission ID and show feedback modal
-      setLastSubmissionId(data.id);
-      setShowFeedbackModal(true);
 
       // Reset form
       setFormData({
@@ -258,15 +249,6 @@ const SubmissionForm = () => {
           </form>
         </div>
       </div>
-
-      {/* Feedback Modal */}
-      <FeedbackModal
-        isOpen={showFeedbackModal}
-        onClose={() => setShowFeedbackModal(false)}
-        submissionId={lastSubmissionId}
-        userName={formData.fullName}
-        thesisTitle={formData.thesisTitle}
-      />
     </div>
   );
 };
