@@ -19,11 +19,9 @@ const SubmissionForm = () => {
   const { toast } = useToast();
 
   const campusOptions = [
-    'Manila',
-    'Batangas',
-    'Cavite',
-    'Laguna',
-    'Makati'
+    'LIMA Campus',
+    'Main Campus',
+    'Riverside Campus'
   ];
 
   const programOptions = [
