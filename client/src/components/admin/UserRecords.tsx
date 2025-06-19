@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Download, Eye, Edit, Trash2 } from 'lucide-react';
+import { Search, Filter, Download, Eye, Edit, Trash2, X } from 'lucide-react';
 import { supabase } from '../../integrations/supabase/client';
 import { useToast } from '../../hooks/use-toast';
 
@@ -22,6 +22,7 @@ interface UserRecordsProps {
 
 const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchField, setSearchField] = useState('all');
   const [filterType, setFilterType] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [records, setRecords] = useState<ThesisSubmission[]>([]);
@@ -139,11 +140,40 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
   };
 
   const filteredRecords = records.filter(record => {
-    const matchesSearch = record.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         record.thesis_title.toLowerCase().includes(searchTerm.toLowerCase());
+    // Search functionality based on selected field
+    let matchesSearch = true;
+    if (searchTerm.trim()) {
+      const searchLower = searchTerm.toLowerCase();
+      switch (searchField) {
+        case 'name':
+          matchesSearch = record.full_name.toLowerCase().includes(searchLower);
+          break;
+        case 'id_school':
+          const idSchoolValue = (record.student_number || record.school || '').toLowerCase();
+          matchesSearch = idSchoolValue.includes(searchLower);
+          break;
+        case 'program':
+          matchesSearch = (record.program || '').toLowerCase().includes(searchLower);
+          break;
+        case 'thesis_title':
+          matchesSearch = record.thesis_title.toLowerCase().includes(searchLower);
+          break;
+        case 'all':
+        default:
+          matchesSearch = record.full_name.toLowerCase().includes(searchLower) ||
+                         record.thesis_title.toLowerCase().includes(searchLower) ||
+                         (record.student_number || '').toLowerCase().includes(searchLower) ||
+                         (record.school || '').toLowerCase().includes(searchLower) ||
+                         (record.program || '').toLowerCase().includes(searchLower);
+          break;
+      }
+    }
+
+    // Filter by user type
     const matchesFilter = filterType === 'all' || 
                          (filterType === 'lpu' && record.user_type === 'LPU Student') ||
                          (filterType === 'non-lpu' && record.user_type === 'Non-LPU Student');
+    
     return matchesSearch && matchesFilter;
   });
 
@@ -211,24 +241,56 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search by name or thesis title..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="input-field pl-10"
-          />
+      {/* Search and Filters */}
+      <div className="flex flex-col lg:flex-row gap-4">
+        {/* Search Section */}
+        <div className="flex-1 flex flex-col sm:flex-row gap-2">
+          <div className="flex items-center space-x-2 min-w-[180px]">
+            <Search className="h-5 w-5 text-gray-400" />
+            <select
+              value={searchField}
+              onChange={(e) => setSearchField(e.target.value)}
+              className="select-field w-full"
+            >
+              <option value="all">Search All Fields</option>
+              <option value="name">Name</option>
+              <option value="id_school">ID/School</option>
+              <option value="program">Program</option>
+              <option value="thesis_title">Thesis Title</option>
+            </select>
+          </div>
+          <div className="relative flex-1">
+            <input
+              type="text"
+              placeholder={`${searchField === 'all' ? 'Search across all fields...' : 
+                          searchField === 'name' ? 'Search by name...' :
+                          searchField === 'id_school' ? 'Search by student ID or school...' :
+                          searchField === 'program' ? 'Search by program...' :
+                          searchField === 'thesis_title' ? 'Search by thesis title...' :
+                          'Search...'}`}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="input-field w-full pr-10"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                title="Clear search"
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
         </div>
-        <div className="flex items-center space-x-2">
+
+        {/* User Type Filter */}
+        <div className="flex items-center space-x-2 min-w-[180px]">
           <Filter className="h-5 w-5 text-gray-400" />
           <select
             value={filterType}
             onChange={(e) => setFilterType(e.target.value)}
-            className="select-field w-auto min-w-[150px]"
+            className="select-field w-full"
           >
             <option value="all">All Users</option>
             <option value="lpu">LPU Students</option>
@@ -236,6 +298,41 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
           </select>
         </div>
       </div>
+
+      {/* Search Status */}
+      {(searchTerm || filterType !== 'all') && (
+        <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
+          <div className="flex items-center space-x-2 text-sm text-blue-800">
+            <Search size={16} />
+            <span>
+              Showing {filteredRecords.length} of {records.length} records
+              {searchTerm && (
+                <span> matching "{searchTerm}" in {
+                  searchField === 'all' ? 'all fields' :
+                  searchField === 'name' ? 'name' :
+                  searchField === 'id_school' ? 'ID/school' :
+                  searchField === 'program' ? 'program' :
+                  searchField === 'thesis_title' ? 'thesis title' : 'selected field'
+                }</span>
+              )}
+              {filterType !== 'all' && (
+                <span> for {filterType === 'lpu' ? 'LPU students' : 'non-LPU students'}</span>
+              )}
+            </span>
+          </div>
+          <button
+            onClick={() => {
+              setSearchTerm('');
+              setSearchField('all');
+              setFilterType('all');
+            }}
+            className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center space-x-1"
+          >
+            <X size={14} />
+            <span>Clear all filters</span>
+          </button>
+        </div>
+      )}
 
       {/* Records Table */}
       <div className="card-hover overflow-hidden">
