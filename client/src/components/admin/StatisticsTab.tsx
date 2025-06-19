@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend } from 'recharts';
 import { Users, FileText, TrendingUp, Calendar, School, BookOpen } from 'lucide-react';
 import { supabase } from '../../integrations/supabase/client';
 
@@ -181,6 +181,19 @@ const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
         {/* User Type Distribution */}
         <div className="card-hover p-6">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">Student Type Distribution</h3>
+          
+          {/* Custom Legend */}
+          <div className="flex justify-center mb-4 space-x-6">
+            <div className="flex items-center space-x-2">
+              <div className="w-4 h-4 bg-red-600 rounded-full"></div>
+              <span className="text-sm text-gray-700">🔴 LPU Students</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-4 h-4 bg-blue-600 rounded-full"></div>
+              <span className="text-sm text-gray-700">🔵 Non-LPU Students</span>
+            </div>
+          </div>
+
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
               <Pie
