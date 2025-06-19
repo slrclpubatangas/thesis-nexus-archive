@@ -119,6 +119,8 @@ UndergradFile is a full-stack web application designed for managing undergraduat
 
 ```
 Changelog:
+- June 19, 2025. Successfully migrated project from Lovable to Replit environment
+- June 19, 2025. Updated campus options to LIMA Campus, Main Campus, and Riverside Campus
 - June 15, 2025. Initial setup
 ```
 
