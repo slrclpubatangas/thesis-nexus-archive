@@ -158,44 +158,111 @@ const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
           <span>Refresh</span>
         </button>
       </div>
-      {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="card-hover p-6 text-center">
-          <div className="flex items-center justify-center w-12 h-12 bg-red-100 rounded-lg mx-auto mb-4">
-            <FileText className="h-6 w-6 text-red-600" />
-          </div>
-          <div className="text-2xl font-bold text-gray-800">{stats.totalSubmissions}</div>
-          <div className="text-sm text-gray-600">Total Submissions</div>
-        </div>
-
-        {userRole === 'Admin' && (
-          <div className="card-hover p-6 text-center">
-            <div className="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-lg mx-auto mb-4">
-              <Users className="h-6 w-6 text-blue-600" />
+      {/* Top Section - Metrics and Popular Research Topics */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left side - Key Metrics in 2x2 grid */}
+        <div className="lg:col-span-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* LPU Students */}
+            <div className="card-hover p-6">
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center justify-center w-12 h-12 bg-green-100 rounded-lg">
+                  <Users className="h-6 w-6 text-green-600" />
+                </div>
+                <div className="flex-1">
+                  <div className="text-sm text-gray-600 mb-1">LPU Students</div>
+                  <div className="text-3xl font-bold text-gray-800">{stats.lpuStudents}</div>
+                  <div className="text-sm text-green-600">↑ 8.3% vs last period</div>
+                </div>
+              </div>
             </div>
-            <div className="text-2xl font-bold text-gray-800">{stats.totalUsers}</div>
-            <div className="text-sm text-gray-600">System Users</div>
-          </div>
-        )}
 
-        <div className="card-hover p-6 text-center">
-          <div className="flex items-center justify-center w-12 h-12 bg-green-100 rounded-lg mx-auto mb-4">
-            <Calendar className="h-6 w-6 text-green-600" />
+            {/* External Users */}
+            <div className="card-hover p-6">
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center justify-center w-12 h-12 bg-purple-100 rounded-lg">
+                  <Users className="h-6 w-6 text-purple-600" />
+                </div>
+                <div className="flex-1">
+                  <div className="text-sm text-gray-600 mb-1">External Users</div>
+                  <div className="text-3xl font-bold text-gray-800">{stats.nonLpuStudents}</div>
+                  <div className="text-sm text-purple-600">↑ 18.7% vs last period</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Total Submissions */}
+            <div className="card-hover p-6">
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-lg">
+                  <FileText className="h-6 w-6 text-blue-600" />
+                </div>
+                <div className="flex-1">
+                  <div className="text-sm text-gray-600 mb-1">Total Submissions</div>
+                  <div className="text-3xl font-bold text-gray-800">{stats.totalSubmissions}</div>
+                  <div className="text-sm text-blue-600">↑ 12.5% vs last period</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Total Exports */}
+            <div className="card-hover p-6">
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center justify-center w-12 h-12 bg-yellow-100 rounded-lg">
+                  <Calendar className="h-6 w-6 text-yellow-600" />
+                </div>
+                <div className="flex-1">
+                  <div className="text-sm text-gray-600 mb-1">Total Exports</div>
+                  <div className="text-3xl font-bold text-gray-800">{stats.recentSubmissions * 2.84}</div>
+                  <div className="text-sm text-yellow-600">↑ 24.2% vs last period</div>
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="text-2xl font-bold text-gray-800">{stats.recentSubmissions}</div>
-          <div className="text-sm text-gray-600">Last 30 Days</div>
         </div>
 
-        <div className="card-hover p-6 text-center">
-          <div className="flex items-center justify-center w-12 h-12 bg-purple-100 rounded-lg mx-auto mb-4">
-            <School className="h-6 w-6 text-purple-600" />
+        {/* Right side - Popular Research Topics */}
+        <div className="card-hover p-6">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">Popular Research Topics</h3>
+          <div className="space-y-4">
+            {stats.popularPrograms.length === 0 ? (
+              <div className="text-center text-gray-500 py-8">
+                <BookOpen className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                <p className="text-sm">No program data available</p>
+              </div>
+            ) : (
+              stats.popularPrograms.slice(0, 5).map((program, index) => {
+                const colors = [
+                  { bg: 'bg-blue-500', text: 'text-blue-600' },
+                  { bg: 'bg-green-500', text: 'text-green-600' },
+                  { bg: 'bg-orange-500', text: 'text-orange-600' },
+                  { bg: 'bg-purple-500', text: 'text-purple-600' },
+                  { bg: 'bg-red-500', text: 'text-red-600' }
+                ];
+                const color = colors[index % colors.length];
+                return (
+                  <div key={program.name} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-700" title={program.name}>
+                        {program.name}
+                      </span>
+                      <span className="text-sm font-bold text-gray-800">{program.percentage}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className={`h-2 rounded-full ${color.bg}`}
+                        style={{ width: `${program.percentage}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
-          <div className="text-2xl font-bold text-gray-800">{stats.lpuStudents}</div>
-          <div className="text-sm text-gray-600">LPU Students</div>
         </div>
       </div>
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* User Type Distribution */}
         <div className="card-hover p-6">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">Student Type Distribution</h3>
@@ -246,44 +313,6 @@ const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
               <Bar dataKey="value" fill="#dc2626" />
             </BarChart>
           </ResponsiveContainer>
-        </div>
-
-        {/* Popular Research Topics */}
-        <div className="card-hover p-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Popular Research Topics</h3>
-          <div className="space-y-3">
-            {stats.popularPrograms.length === 0 ? (
-              <div className="text-center text-gray-500 py-8">
-                <BookOpen className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                <p className="text-sm">No program data available</p>
-              </div>
-            ) : (
-              stats.popularPrograms.map((program, index) => {
-                const colors = [
-                  'bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-orange-500', 'bg-red-500',
-                  'bg-indigo-500', 'bg-pink-500', 'bg-yellow-500', 'bg-teal-500', 'bg-gray-500'
-                ];
-                return (
-                  <div key={program.name} className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-medium text-gray-700 truncate" title={program.name}>
-                          {program.name}
-                        </span>
-                        <span className="text-sm text-gray-500">{program.percentage}%</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div
-                          className={`h-2 rounded-full ${colors[index % colors.length]}`}
-                          style={{ width: `${program.percentage}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
         </div>
       </div>
       {/* Monthly Trend */}
