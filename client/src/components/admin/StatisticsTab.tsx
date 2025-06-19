@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend } from 'recharts';
-import { Users, FileText, TrendingUp, Calendar, School, BookOpen } from 'lucide-react';
+import { Users, FileText, TrendingUp, Calendar, School, BookOpen, X, Filter } from 'lucide-react';
 import { supabase } from '../../integrations/supabase/client';
 
 interface StatisticsTabProps {
@@ -31,19 +31,34 @@ const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
     popularPrograms: []
   });
   const [loading, setLoading] = useState(true);
+  const [selectedYear, setSelectedYear] = useState<string>('all');
+  const [dateRange, setDateRange] = useState({ start: '', end: '' });
 
   useEffect(() => {
     fetchStatistics();
-  }, []);
+  }, [selectedYear, dateRange]);
 
   const fetchStatistics = async () => {
     try {
       setLoading(true);
 
-      // Fetch total submissions
-      const { data: submissions, error: submissionsError } = await supabase
-        .from('thesis_submissions')
-        .select('*');
+      // Build date filter query
+      let query = supabase.from('thesis_submissions').select('*');
+      
+      // Apply date filtering
+      if (selectedYear !== 'all') {
+        const startOfYear = `${selectedYear}-01-01`;
+        const endOfYear = `${selectedYear}-12-31`;
+        query = query.gte('submission_date', startOfYear).lte('submission_date', endOfYear);
+      } else if (dateRange.start && dateRange.end) {
+        query = query.gte('submission_date', dateRange.start).lte('submission_date', dateRange.end);
+      } else if (dateRange.start) {
+        query = query.gte('submission_date', dateRange.start);
+      } else if (dateRange.end) {
+        query = query.lte('submission_date', dateRange.end);
+      }
+
+      const { data: submissions, error: submissionsError } = await query;
 
       if (submissionsError) throw submissionsError;
 
@@ -128,6 +143,21 @@ const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
     }
   };
 
+  // Get available years from the data
+  const getAvailableYears = () => {
+    const currentYear = new Date().getFullYear();
+    const years = [];
+    for (let year = currentYear; year >= currentYear - 5; year--) {
+      years.push(year.toString());
+    }
+    return years;
+  };
+
+  const clearFilters = () => {
+    setSelectedYear('all');
+    setDateRange({ start: '', end: '' });
+  };
+
   const COLORS = ['#dc2626', '#ea580c', '#d97706', '#ca8a04', '#65a30d', '#16a34a'];
 
   if (loading) {
@@ -142,21 +172,106 @@ const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-800">Statistics Dashboard</h2>
-          <p className="text-gray-600">
-            {userRole === 'Reader' ? 'View thesis submission analytics' : 'Overview of thesis submissions and system analytics'}
-          </p>
+      <div className="space-y-4">
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-800">Statistics Dashboard</h2>
+            <p className="text-gray-600">
+              {userRole === 'Reader' ? 'View thesis submission analytics' : 'Overview of thesis submissions and system analytics'}
+            </p>
+          </div>
+          <button 
+            onClick={fetchStatistics}
+            className="btn-secondary flex items-center space-x-2"
+            disabled={loading}
+          >
+            <TrendingUp size={16} />
+            <span>Refresh</span>
+          </button>
         </div>
-        <button 
-          onClick={fetchStatistics}
-          className="btn-secondary flex items-center space-x-2"
-          disabled={loading}
-        >
-          <TrendingUp size={16} />
-          <span>Refresh</span>
-        </button>
+
+        {/* Date Filters */}
+        <div className="flex flex-col sm:flex-row gap-4 bg-gray-50 p-4 rounded-lg">
+          <div className="flex items-center space-x-2">
+            <Calendar className="h-5 w-5 text-gray-400" />
+            <select
+              value={selectedYear}
+              onChange={(e) => {
+                setSelectedYear(e.target.value);
+                if (e.target.value !== 'all') {
+                  setDateRange({ start: '', end: '' });
+                }
+              }}
+              className="select-field min-w-[120px]"
+            >
+              <option value="all">All Years</option>
+              {getAvailableYears().map(year => (
+                <option key={year} value={year}>{year}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <span className="text-sm text-gray-500">OR</span>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <Filter className="h-5 w-5 text-gray-400" />
+            <span className="text-sm font-medium text-gray-700">Custom Range:</span>
+            <input
+              type="date"
+              value={dateRange.start}
+              onChange={(e) => {
+                setDateRange(prev => ({ ...prev, start: e.target.value }));
+                if (e.target.value) {
+                  setSelectedYear('all');
+                }
+              }}
+              className="input-field text-sm"
+              placeholder="Start date"
+            />
+            <span className="text-gray-500">to</span>
+            <input
+              type="date"
+              value={dateRange.end}
+              onChange={(e) => {
+                setDateRange(prev => ({ ...prev, end: e.target.value }));
+                if (e.target.value) {
+                  setSelectedYear('all');
+                }
+              }}
+              className="input-field text-sm"
+              placeholder="End date"
+            />
+          </div>
+
+          {(selectedYear !== 'all' || dateRange.start || dateRange.end) && (
+            <button
+              onClick={clearFilters}
+              className="flex items-center space-x-1 text-red-600 hover:text-red-800 text-sm"
+              title="Clear all filters"
+            >
+              <X size={16} />
+              <span>Clear</span>
+            </button>
+          )}
+        </div>
+
+        {/* Active Filter Indicator */}
+        {(selectedYear !== 'all' || dateRange.start || dateRange.end) && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2">
+            <div className="flex items-center space-x-2 text-sm text-blue-800">
+              <Filter size={16} />
+              <span>
+                Filtered by: 
+                {selectedYear !== 'all' && ` Year ${selectedYear}`}
+                {dateRange.start && dateRange.end && ` ${new Date(dateRange.start).toLocaleDateString()} - ${new Date(dateRange.end).toLocaleDateString()}`}
+                {dateRange.start && !dateRange.end && ` From ${new Date(dateRange.start).toLocaleDateString()}`}
+                {!dateRange.start && dateRange.end && ` Until ${new Date(dateRange.end).toLocaleDateString()}`}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
       {/* Top Section - Metrics and Popular Research Topics */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
