@@ -200,7 +200,6 @@ const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
                 <div className="flex-1">
                   <div className="text-sm text-gray-600 mb-1">Total Submissions</div>
                   <div className="text-3xl font-bold text-gray-800">{stats.totalSubmissions}</div>
-                  <div className="text-sm text-blue-600">↑ 12.5% vs last period</div>
                 </div>
               </div>
             </div>
