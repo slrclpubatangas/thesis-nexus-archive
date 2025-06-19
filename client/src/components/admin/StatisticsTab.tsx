@@ -16,6 +16,7 @@ interface StatsData {
   nonLpuStudents: number;
   campusData: Array<{ name: string; value: number }>;
   monthlyData: Array<{ month: string; submissions: number }>;
+  popularPrograms: Array<{ name: string; count: number; percentage: number }>;
 }
 
 const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
@@ -26,7 +27,8 @@ const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
     lpuStudents: 0,
     nonLpuStudents: 0,
     campusData: [],
-    monthlyData: []
+    monthlyData: [],
+    popularPrograms: []
   });
   const [loading, setLoading] = useState(true);
 
@@ -80,6 +82,23 @@ const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
         .map(([month, submissions]) => ({ month, submissions }))
         .slice(-6);
 
+      // Calculate popular programs
+      const programCount = submissions?.reduce((acc, submission) => {
+        if (submission.program) {
+          acc[submission.program] = (acc[submission.program] || 0) + 1;
+        }
+        return acc;
+      }, {} as Record<string, number>) || {};
+
+      const popularPrograms = Object.entries(programCount)
+        .map(([name, count]) => ({
+          name,
+          count,
+          percentage: Math.round((count / totalSubmissions) * 100)
+        }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10); // Top 10 popular programs
+
       // Fetch system users count if user is Admin
       let totalUsers = 0;
       if (userRole === 'Admin') {
@@ -99,7 +118,8 @@ const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
         lpuStudents,
         nonLpuStudents,
         campusData,
-        monthlyData
+        monthlyData,
+        popularPrograms
       });
     } catch (error) {
       console.error('Error fetching statistics:', error);
@@ -175,7 +195,7 @@ const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
         </div>
       </div>
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
         {/* User Type Distribution */}
         <div className="card-hover p-6">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">Student Type Distribution</h3>
@@ -226,6 +246,44 @@ const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
               <Bar dataKey="value" fill="#dc2626" />
             </BarChart>
           </ResponsiveContainer>
+        </div>
+
+        {/* Popular Research Topics */}
+        <div className="card-hover p-6">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">Popular Research Topics</h3>
+          <div className="space-y-3">
+            {stats.popularPrograms.length === 0 ? (
+              <div className="text-center text-gray-500 py-8">
+                <BookOpen className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                <p className="text-sm">No program data available</p>
+              </div>
+            ) : (
+              stats.popularPrograms.map((program, index) => {
+                const colors = [
+                  'bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-orange-500', 'bg-red-500',
+                  'bg-indigo-500', 'bg-pink-500', 'bg-yellow-500', 'bg-teal-500', 'bg-gray-500'
+                ];
+                return (
+                  <div key={program.name} className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-medium text-gray-700 truncate" title={program.name}>
+                          {program.name}
+                        </span>
+                        <span className="text-sm text-gray-500">{program.percentage}%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div
+                          className={`h-2 rounded-full ${colors[index % colors.length]}`}
+                          style={{ width: `${program.percentage}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
       </div>
       {/* Monthly Trend */}
