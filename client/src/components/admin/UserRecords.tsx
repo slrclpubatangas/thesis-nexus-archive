@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Download, Eye, Edit, Trash2, X } from 'lucide-react';
+import { Search, Filter, Download, Eye, Edit, Trash2, X, Calendar, MapPin } from 'lucide-react';
 import { supabase } from '../../integrations/supabase/client';
 import { useToast } from '../../hooks/use-toast';
 
@@ -24,6 +24,11 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [searchField, setSearchField] = useState('all');
   const [filterType, setFilterType] = useState('all');
+  const [campusFilter, setCampusFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState('');
+  const [dateRange, setDateRange] = useState({ start: '', end: '' });
+  const [sortBy, setSortBy] = useState('submission_date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [currentPage, setCurrentPage] = useState(1);
   const [records, setRecords] = useState<ThesisSubmission[]>([]);
   const [loading, setLoading] = useState(true);
@@ -139,50 +144,101 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
     }
   };
 
-  const filteredRecords = records.filter(record => {
-    // Search functionality based on selected field
-    let matchesSearch = true;
-    if (searchTerm.trim()) {
-      const searchLower = searchTerm.toLowerCase();
-      switch (searchField) {
-        case 'name':
-          matchesSearch = record.full_name.toLowerCase().includes(searchLower);
+  // Get unique campuses for filter dropdown
+  const uniqueCampuses = Array.from(new Set(records.map(record => record.campus))).sort();
+
+  const filteredAndSortedRecords = records
+    .filter(record => {
+      // Search functionality based on selected field
+      let matchesSearch = true;
+      if (searchTerm.trim()) {
+        const searchLower = searchTerm.toLowerCase();
+        switch (searchField) {
+          case 'name':
+            matchesSearch = record.full_name.toLowerCase().includes(searchLower);
+            break;
+          case 'id_school':
+            const idSchoolValue = (record.student_number || record.school || '').toLowerCase();
+            matchesSearch = idSchoolValue.includes(searchLower);
+            break;
+          case 'program':
+            matchesSearch = (record.program || '').toLowerCase().includes(searchLower);
+            break;
+          case 'thesis_title':
+            matchesSearch = record.thesis_title.toLowerCase().includes(searchLower);
+            break;
+          case 'all':
+          default:
+            matchesSearch = record.full_name.toLowerCase().includes(searchLower) ||
+                           record.thesis_title.toLowerCase().includes(searchLower) ||
+                           (record.student_number || '').toLowerCase().includes(searchLower) ||
+                           (record.school || '').toLowerCase().includes(searchLower) ||
+                           (record.program || '').toLowerCase().includes(searchLower);
+            break;
+        }
+      }
+
+      // Filter by user type
+      const matchesUserType = filterType === 'all' || 
+                             (filterType === 'lpu' && record.user_type === 'LPU Student') ||
+                             (filterType === 'non-lpu' && record.user_type === 'Non-LPU Student');
+
+      // Filter by campus
+      const matchesCampus = campusFilter === 'all' || record.campus === campusFilter;
+
+      // Filter by date
+      let matchesDate = true;
+      const recordDate = new Date(record.submission_date);
+      
+      if (dateFilter) {
+        const filterDate = new Date(dateFilter);
+        matchesDate = recordDate.toDateString() === filterDate.toDateString();
+      } else if (dateRange.start && dateRange.end) {
+        const startDate = new Date(dateRange.start);
+        const endDate = new Date(dateRange.end);
+        matchesDate = recordDate >= startDate && recordDate <= endDate;
+      } else if (dateRange.start) {
+        const startDate = new Date(dateRange.start);
+        matchesDate = recordDate >= startDate;
+      } else if (dateRange.end) {
+        const endDate = new Date(dateRange.end);
+        matchesDate = recordDate <= endDate;
+      }
+
+      return matchesSearch && matchesUserType && matchesCampus && matchesDate;
+    })
+    .sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortBy) {
+        case 'submission_date':
+          comparison = new Date(a.submission_date).getTime() - new Date(b.submission_date).getTime();
           break;
-        case 'id_school':
-          const idSchoolValue = (record.student_number || record.school || '').toLowerCase();
-          matchesSearch = idSchoolValue.includes(searchLower);
+        case 'full_name':
+          comparison = a.full_name.localeCompare(b.full_name);
           break;
-        case 'program':
-          matchesSearch = (record.program || '').toLowerCase().includes(searchLower);
+        case 'campus':
+          comparison = a.campus.localeCompare(b.campus);
           break;
         case 'thesis_title':
-          matchesSearch = record.thesis_title.toLowerCase().includes(searchLower);
+          comparison = a.thesis_title.localeCompare(b.thesis_title);
           break;
-        case 'all':
+        case 'user_type':
+          comparison = a.user_type.localeCompare(b.user_type);
+          break;
         default:
-          matchesSearch = record.full_name.toLowerCase().includes(searchLower) ||
-                         record.thesis_title.toLowerCase().includes(searchLower) ||
-                         (record.student_number || '').toLowerCase().includes(searchLower) ||
-                         (record.school || '').toLowerCase().includes(searchLower) ||
-                         (record.program || '').toLowerCase().includes(searchLower);
-          break;
+          comparison = new Date(a.submission_date).getTime() - new Date(b.submission_date).getTime();
       }
-    }
-
-    // Filter by user type
-    const matchesFilter = filterType === 'all' || 
-                         (filterType === 'lpu' && record.user_type === 'LPU Student') ||
-                         (filterType === 'non-lpu' && record.user_type === 'Non-LPU Student');
-    
-    return matchesSearch && matchesFilter;
-  });
+      
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
 
   const handleExport = () => {
     // Create CSV content
     const headers = ['Name', 'Type', 'ID/School', 'Campus', 'Program', 'Thesis Title', 'Date'];
     const csvContent = [
       headers.join(','),
-      ...filteredRecords.map(record => [
+      ...filteredAndSortedRecords.map(record => [
         record.full_name,
         record.user_type,
         record.student_number || record.school || '',
@@ -233,7 +289,7 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
           <button 
             onClick={handleExport}
             className="btn-primary flex items-center space-x-2"
-            disabled={filteredRecords.length === 0}
+            disabled={filteredAndSortedRecords.length === 0}
           >
             <Download size={16} />
             <span>Export CSV</span>
@@ -242,9 +298,9 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
       </div>
 
       {/* Search and Filters */}
-      <div className="flex flex-col lg:flex-row gap-4">
-        {/* Search Section */}
-        <div className="flex-1 flex flex-col sm:flex-row gap-2">
+      <div className="space-y-4">
+        {/* First Row - Search */}
+        <div className="flex flex-col sm:flex-row gap-2">
           <div className="flex items-center space-x-2 min-w-[180px]">
             <Search className="h-5 w-5 text-gray-400" />
             <select
@@ -284,28 +340,111 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
           </div>
         </div>
 
-        {/* User Type Filter */}
-        <div className="flex items-center space-x-2 min-w-[180px]">
-          <Filter className="h-5 w-5 text-gray-400" />
-          <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
-            className="select-field w-full"
-          >
-            <option value="all">All Users</option>
-            <option value="lpu">LPU Students</option>
-            <option value="non-lpu">Non-LPU Students</option>
-          </select>
+        {/* Second Row - Filters and Sorting */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* User Type Filter */}
+          <div className="flex items-center space-x-2">
+            <Filter className="h-5 w-5 text-gray-400" />
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              className="select-field w-full"
+            >
+              <option value="all">All Users</option>
+              <option value="lpu">LPU Students</option>
+              <option value="non-lpu">Non-LPU Students</option>
+            </select>
+          </div>
+
+          {/* Campus Filter */}
+          <div className="flex items-center space-x-2">
+            <MapPin className="h-5 w-5 text-gray-400" />
+            <select
+              value={campusFilter}
+              onChange={(e) => setCampusFilter(e.target.value)}
+              className="select-field w-full"
+            >
+              <option value="all">All Campuses</option>
+              {uniqueCampuses.map(campus => (
+                <option key={campus} value={campus}>{campus}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Date Filter */}
+          <div className="flex items-center space-x-2">
+            <Calendar className="h-5 w-5 text-gray-400" />
+            <input
+              type="date"
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              className="input-field w-full"
+              title="Filter by exact date"
+            />
+          </div>
+
+          {/* Sort Options */}
+          <div className="flex items-center space-x-2">
+            <select
+              value={`${sortBy}-${sortOrder}`}
+              onChange={(e) => {
+                const [field, order] = e.target.value.split('-') as [string, 'asc' | 'desc'];
+                setSortBy(field);
+                setSortOrder(order);
+              }}
+              className="select-field w-full"
+            >
+              <option value="submission_date-desc">Latest First</option>
+              <option value="submission_date-asc">Oldest First</option>
+              <option value="full_name-asc">Name A-Z</option>
+              <option value="full_name-desc">Name Z-A</option>
+              <option value="campus-asc">Campus A-Z</option>
+              <option value="campus-desc">Campus Z-A</option>
+              <option value="thesis_title-asc">Title A-Z</option>
+              <option value="thesis_title-desc">Title Z-A</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Date Range Filter */}
+        <div className="flex items-center space-x-4 bg-gray-50 p-3 rounded-lg">
+          <span className="text-sm font-medium text-gray-700">Date Range:</span>
+          <div className="flex items-center space-x-2">
+            <input
+              type="date"
+              value={dateRange.start}
+              onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+              className="input-field text-sm"
+              placeholder="Start date"
+            />
+            <span className="text-gray-500">to</span>
+            <input
+              type="date"
+              value={dateRange.end}
+              onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+              className="input-field text-sm"
+              placeholder="End date"
+            />
+          </div>
+          {(dateRange.start || dateRange.end) && (
+            <button
+              onClick={() => setDateRange({ start: '', end: '' })}
+              className="text-red-600 hover:text-red-800 text-sm"
+              title="Clear date range"
+            >
+              <X size={16} />
+            </button>
+          )}
         </div>
       </div>
 
       {/* Search Status */}
-      {(searchTerm || filterType !== 'all') && (
+      {(searchTerm || filterType !== 'all' || campusFilter !== 'all' || dateFilter || dateRange.start || dateRange.end) && (
         <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
           <div className="flex items-center space-x-2 text-sm text-blue-800">
             <Search size={16} />
             <span>
-              Showing {filteredRecords.length} of {records.length} records
+              Showing {filteredAndSortedRecords.length} of {records.length} records
               {searchTerm && (
                 <span> matching "{searchTerm}" in {
                   searchField === 'all' ? 'all fields' :
@@ -318,6 +457,15 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
               {filterType !== 'all' && (
                 <span> for {filterType === 'lpu' ? 'LPU students' : 'non-LPU students'}</span>
               )}
+              {campusFilter !== 'all' && (
+                <span> at {campusFilter}</span>
+              )}
+              {dateFilter && (
+                <span> on {new Date(dateFilter).toLocaleDateString()}</span>
+              )}
+              {(dateRange.start || dateRange.end) && (
+                <span> from {dateRange.start ? new Date(dateRange.start).toLocaleDateString() : 'start'} to {dateRange.end ? new Date(dateRange.end).toLocaleDateString() : 'end'}</span>
+              )}
             </span>
           </div>
           <button
@@ -325,6 +473,9 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
               setSearchTerm('');
               setSearchField('all');
               setFilterType('all');
+              setCampusFilter('all');
+              setDateFilter('');
+              setDateRange({ start: '', end: '' });
             }}
             className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center space-x-1"
           >
@@ -369,7 +520,7 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredRecords.length === 0 ? (
+              {filteredAndSortedRecords.length === 0 ? (
                 <tr>
                   <td colSpan={userRole === 'Admin' ? 8 : 7} className="px-6 py-8 text-center text-gray-500">
                     {records.length === 0 ? (
@@ -385,7 +536,7 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
                   </td>
                 </tr>
               ) : (
-                filteredRecords.map((record) => (
+                filteredAndSortedRecords.map((record) => (
                   <tr key={record.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">
@@ -452,10 +603,10 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
       </div>
 
       {/* Pagination Info */}
-      {filteredRecords.length > 0 && (
+      {filteredAndSortedRecords.length > 0 && (
         <div className="flex items-center justify-between text-sm text-gray-700">
           <div>
-            Showing {filteredRecords.length} of {records.length} records
+            Showing {filteredAndSortedRecords.length} of {records.length} records
           </div>
           <div className="text-gray-500">
             Last updated: {new Date().toLocaleTimeString()}
