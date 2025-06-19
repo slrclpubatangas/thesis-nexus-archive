@@ -184,7 +184,7 @@ const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
           <div className="flex justify-center mb-4 space-x-6">
             <div className="flex items-center space-x-2">
               <div className="w-4 h-4 bg-red-600 rounded-full"></div>
-              <span className="text-sm text-gray-700">🔴 LPU Students</span>
+              <span className="text-sm text-gray-700">LPU Students</span>
             </div>
             <div className="flex items-center space-x-2">
               <div className="w-4 h-4 bg-blue-600 rounded-full"></div>
