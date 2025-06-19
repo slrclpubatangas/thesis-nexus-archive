@@ -138,7 +138,6 @@ const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
           <span>Refresh</span>
         </button>
       </div>
-
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="card-hover p-6 text-center">
@@ -175,7 +174,6 @@ const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
           <div className="text-sm text-gray-600">LPU Students</div>
         </div>
       </div>
-
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* User Type Distribution */}
@@ -190,7 +188,7 @@ const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
             </div>
             <div className="flex items-center space-x-2">
               <div className="w-4 h-4 bg-blue-600 rounded-full"></div>
-              <span className="text-sm text-gray-700">🔵 Non-LPU Students</span>
+              <span className="text-sm text-gray-700">Non-LPU Students</span>
             </div>
           </div>
 
@@ -230,7 +228,6 @@ const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
           </ResponsiveContainer>
         </div>
       </div>
-
       {/* Monthly Trend */}
       <div className="card-hover p-6">
         <h3 className="text-lg font-semibold text-gray-800 mb-4">Monthly Submission Trend</h3>
@@ -244,7 +241,6 @@ const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
           </LineChart>
         </ResponsiveContainer>
       </div>
-
       {/* Summary Info */}
       <div className="card-hover p-6">
         <h3 className="text-lg font-semibold text-gray-800 mb-4">Quick Summary</h3>
