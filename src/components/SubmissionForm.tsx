@@ -103,14 +103,10 @@ const SubmissionForm = () => {
           {/* Header */}
           <div className="text-center mb-8">
             <div className="flex items-center justify-center space-x-3 mb-4">
-              <FileText className="h-8 w-8 text-red-600" />
               <h2 className="text-3xl font-bold text-gray-800">
-                Daily Record of Users
+              DAILY RECORD OF USERS OF THE UNDERGRADUATE RESEARCH COLLECTION
               </h2>
             </div>
-            <p className="text-gray-600 text-lg">
-              Undergraduate Research Collection
-            </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">

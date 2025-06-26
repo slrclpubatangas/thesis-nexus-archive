@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import Header from '../components/Header';
 import SubmissionForm from '../components/SubmissionForm';
@@ -29,7 +28,7 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header />
+      <Header onAdminLoginClick={() => setShowLoginModal(true)} showAdminLogin={!user} />
       
       {/* Main Content */}
       {user && session ? (
@@ -43,18 +42,6 @@ const Index = () => {
         isOpen={showLoginModal} 
         onClose={() => setShowLoginModal(false)} 
       />
-
-      {/* Admin Login Button for Non-Authenticated Users */}
-      {!user && (
-        <div className="fixed bottom-6 right-6">
-          <button
-            onClick={() => setShowLoginModal(true)}
-            className="btn-primary shadow-lg hover:shadow-xl"
-          >
-            Admin Login
-          </button>
-        </div>
-      )}
     </div>
   );
 };

@@ -1,8 +1,14 @@
 import React from 'react';
 import { LogOut, BookOpen } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import '../App.css';
 
-const Header = () => {
+interface HeaderProps {
+  onAdminLoginClick?: () => void;
+  showAdminLogin?: boolean;
+}
+
+const Header: React.FC<HeaderProps> = ({ onAdminLoginClick, showAdminLogin }) => {
   const { user, signOut } = useAuth();
 
   const handleSignOut = async () => {
@@ -20,13 +26,14 @@ const Header = () => {
           {/* Logo and Title */}
           <div className="flex items-center space-x-3">
             <img 
-              src="/lovable-uploads/b34d3c1f-7934-4648-86c4-d87241abefb5.png" 
-              alt="LPU Logo" 
-              className="h-10 w-10"
+              src="https://static.readdy.ai/image/2610098eb4b7d6791c922033875fe1ac/cb8d8ce12e7b02e44cac157a69c7b894.png" 
+              alt="New Image Icon" 
+              className="h-12 w-12"
             />
             <div>
-              <h1 className="text-2xl font-bold text-red-600">UndergradFile</h1>
-              <p className="text-sm text-gray-600 hidden sm:block">Undergraduate Research Collection</p>
+              <h1 className="text-2xl font-bold text-red-600 typewriter-container">
+                <span className="typewriter">UndergradFile</span>
+              </h1>
             </div>
           </div>
 
@@ -36,7 +43,14 @@ const Header = () => {
               <BookOpen size={16} />
               <span className="hidden sm:inline">Tutorial</span>
             </button>
-            
+            {showAdminLogin && (
+              <button
+                onClick={onAdminLoginClick}
+                className="btn-primary flex items-center space-x-2"
+              >
+                <span>Admin Login</span>
+              </button>
+            )}
             {user && (
               <div className="flex items-center space-x-3">
                 <span className="text-sm text-gray-700 hidden sm:inline">
