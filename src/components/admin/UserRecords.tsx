@@ -1,5 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Filter, Download, Eye, Edit, Trash2, X, Calendar, MapPin } from 'lucide-react';
 import { supabase } from '../../integrations/supabase/client';
 import { useToast } from '../../hooks/use-toast';
@@ -29,7 +29,6 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
   const [sortBy, setSortBy] = useState('submission_date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [currentPage, setCurrentPage] = useState(1);
   const [records, setRecords] = useState<ThesisSubmission[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
@@ -38,7 +37,6 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
     console.log('UserRecords component mounted');
     fetchRecords();
     
-    // Set up real-time subscription
     const channel = supabase
       .channel('thesis-submissions-changes')
       .on(
@@ -50,7 +48,6 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
         },
         (payload) => {
           console.log('Real-time update received:', payload);
-          // Refresh data when changes occur
           fetchRecords();
         }
       )
@@ -67,12 +64,10 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
       setLoading(true);
       console.log('Fetching records from Supabase...');
       
-      const { data, error, count } = await supabase
+      const { data, error } = await supabase
         .from('thesis_submissions')
-        .select('*', { count: 'exact' })
+        .select('*')
         .order('submission_date', { ascending: false });
-
-      console.log('Supabase query result:', { data, error, count });
 
       if (error) {
         console.error('Error fetching records:', error);
@@ -80,7 +75,6 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
       }
 
       setRecords(data || []);
-      console.log('Records updated in state:', data?.length || 0, 'records');
       
       if (data && data.length > 0) {
         toast({
@@ -101,7 +95,6 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
   };
 
   const handleDelete = async (id: string) => {
-    // Restrict delete action for Reader users
     if (userRole === 'Reader') {
       toast({
         title: "Access Restricted",
@@ -116,23 +109,18 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
     }
 
     try {
-      console.log('Deleting record with id:', id);
       const { error } = await supabase
         .from('thesis_submissions')
         .delete()
         .eq('id', id);
 
-      if (error) {
-        console.error('Delete error:', error);
-        throw error;
-      }
+      if (error) throw error;
 
       toast({
         title: "Success",
         description: "Record deleted successfully.",
       });
 
-      // Refresh the records
       fetchRecords();
     } catch (error) {
       console.error('Error deleting record:', error);
@@ -144,12 +132,10 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
     }
   };
 
-  // Get unique campuses for filter dropdown
   const uniqueCampuses = Array.from(new Set(records.map(record => record.campus))).sort();
 
   const filteredAndSortedRecords = records
     .filter(record => {
-      // Search functionality based on selected field
       let matchesSearch = true;
       if (searchTerm.trim()) {
         const searchLower = searchTerm.toLowerCase();
@@ -167,42 +153,38 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
           case 'thesis_title':
             matchesSearch = record.thesis_title.toLowerCase().includes(searchLower);
             break;
-          case 'all':
           default:
             matchesSearch = record.full_name.toLowerCase().includes(searchLower) ||
                            record.thesis_title.toLowerCase().includes(searchLower) ||
                            (record.student_number || '').toLowerCase().includes(searchLower) ||
                            (record.school || '').toLowerCase().includes(searchLower) ||
                            (record.program || '').toLowerCase().includes(searchLower);
-            break;
         }
       }
 
-      // Filter by user type
       const matchesUserType = filterType === 'all' || 
-                             (filterType === 'lpu' && record.user_type === 'LPU Student') ||
-                             (filterType === 'non-lpu' && record.user_type === 'Non-LPU Student');
+                           (filterType === 'lpu' && record.user_type === 'LPU Student') ||
+                           (filterType === 'non-lpu' && record.user_type === 'Non-LPU Student');
 
-      // Filter by campus
       const matchesCampus = campusFilter === 'all' || record.campus === campusFilter;
 
-      // Filter by date
       let matchesDate = true;
       const recordDate = new Date(record.submission_date);
       
       if (dateFilter) {
         const filterDate = new Date(dateFilter);
         matchesDate = recordDate.toDateString() === filterDate.toDateString();
-      } else if (dateRange.start && dateRange.end) {
-        const startDate = new Date(dateRange.start);
-        const endDate = new Date(dateRange.end);
-        matchesDate = recordDate >= startDate && recordDate <= endDate;
-      } else if (dateRange.start) {
-        const startDate = new Date(dateRange.start);
-        matchesDate = recordDate >= startDate;
-      } else if (dateRange.end) {
-        const endDate = new Date(dateRange.end);
-        matchesDate = recordDate <= endDate;
+      } else if (dateRange.start || dateRange.end) {
+        const startDate = dateRange.start ? new Date(dateRange.start) : null;
+        const endDate = dateRange.end ? new Date(dateRange.end) : null;
+        
+        if (startDate && endDate) {
+          matchesDate = recordDate >= startDate && recordDate <= endDate;
+        } else if (startDate) {
+          matchesDate = recordDate >= startDate;
+        } else if (endDate) {
+          matchesDate = recordDate <= endDate;
+        }
       }
 
       return matchesSearch && matchesUserType && matchesCampus && matchesDate;
@@ -234,7 +216,6 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
     });
 
   const handleExport = () => {
-    // Create CSV content
     const headers = ['Name', 'Type', 'ID/School', 'Campus', 'Program', 'Thesis Title', 'Date'];
     const csvContent = [
       headers.join(','),
@@ -249,7 +230,6 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
       ].map(field => `"${field}"`).join(','))
     ].join('\n');
 
-    // Download CSV
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -485,65 +465,69 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
         </div>
       )}
 
-      {/* Records Table */}
+      {/* Records List Container */}
       <div className="card-hover overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Name
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Type
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  ID/School
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Campus
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Program
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Thesis Title
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Date
-                </th>
-                {userRole === 'Admin' && (
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                )}
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredAndSortedRecords.length === 0 ? (
-                <tr>
-                  <td colSpan={userRole === 'Admin' ? 8 : 7} className="px-6 py-8 text-center text-gray-500">
-                    {records.length === 0 ? (
-                      <div>
-                        <p className="text-lg font-medium mb-2">No thesis submissions yet</p>
-                        <p className="text-sm">
-                          Submissions made through the form will appear here automatically.
-                        </p>
-                      </div>
-                    ) : (
-                      'No records match your search criteria.'
-                    )}
-                  </td>
-                </tr>
+          {/* Table Header (Fixed) */}
+          <div className="sticky top-0 z-10 bg-gray-50 grid grid-cols-[1fr_1fr_1fr_1fr_1fr_2fr_1fr,80px] gap-4 px-6 py-3 border-b">
+            <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Name
+            </div>
+            <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Type
+            </div>
+            <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              ID/School
+            </div>
+            <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Campus
+            </div>
+            <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Program
+            </div>
+            <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Thesis Title
+            </div>
+            <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Date
+            </div>
+            {userRole === 'Admin' && (
+              <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Actions
+              </div>
+            )}
+          </div>
+
+          {/* Animated Scrollable List */}
+          {filteredAndSortedRecords.length === 0 ? (
+            <div className="px-6 py-8 text-center text-gray-500">
+              {records.length === 0 ? (
+                <div>
+                  <p className="text-lg font-medium mb-2">No thesis submissions yet</p>
+                  <p className="text-sm">
+                    Submissions made through the form will appear here automatically.
+                  </p>
+                </div>
               ) : (
-                filteredAndSortedRecords.map((record) => (
-                  <tr key={record.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
-                        {record.full_name}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                'No records match your search criteria.'
+              )}
+            </div>
+          ) : (
+            <div className="overflow-y-auto max-h-[500px]">
+              <AnimatePresence>
+                {filteredAndSortedRecords.map((record) => (
+                  <motion.div
+                    key={record.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.3 }}
+                    className="grid grid-cols-[1fr_1fr_1fr_1fr_1fr_2fr_1fr,80px] gap-4 px-6 py-4 border-b hover:bg-gray-50"
+                  >
+                    <div className="text-sm font-medium text-gray-900 truncate">
+                      {record.full_name}
+                    </div>
+                    <div>
                       <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                         record.user_type === 'LPU Student' 
                           ? 'bg-red-100 text-red-800' 
@@ -551,60 +535,56 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
                       }`}>
                         {record.user_type}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    </div>
+                    <div className="text-sm text-gray-900 truncate">
                       {record.student_number || record.school || '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    </div>
+                    <div className="text-sm text-gray-900 truncate">
                       {record.campus}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    </div>
+                    <div className="text-sm text-gray-900 truncate">
                       {record.program || '-'}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 max-w-xs">
-                      <div className="truncate" title={record.thesis_title}>
-                        {record.thesis_title}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    </div>
+                    <div className="text-sm text-gray-900 truncate" title={record.thesis_title}>
+                      {record.thesis_title}
+                    </div>
+                    <div className="text-sm text-gray-900">
                       {new Date(record.submission_date).toLocaleDateString()}
-                    </td>
+                    </div>
                     {userRole === 'Admin' && (
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex space-x-2">
-                          <button 
-                            className="text-blue-600 hover:text-blue-900"
-                            title="View details"
-                          >
-                            <Eye size={16} />
-                          </button>
-                          <button 
-                            className="text-green-600 hover:text-green-900"
-                            title="Edit record"
-                          >
-                            <Edit size={16} />
-                          </button>
-                          <button 
-                            className="text-red-600 hover:text-red-900"
-                            onClick={() => handleDelete(record.id)}
-                            title="Delete record"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </td>
+                      <div className="flex space-x-2">
+                        <button 
+                          className="text-blue-600 hover:text-blue-900"
+                          title="View details"
+                        >
+                          <Eye size={16} />
+                        </button>
+                        <button 
+                          className="text-green-600 hover:text-green-900"
+                          title="Edit record"
+                        >
+                          <Edit size={16} />
+                        </button>
+                        <button 
+                          className="text-red-600 hover:text-red-900"
+                          onClick={() => handleDelete(record.id)}
+                          title="Delete record"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     )}
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Pagination Info */}
       {filteredAndSortedRecords.length > 0 && (
-        <div className="flex items-center justify-between text-sm text-gray-700">
+        <div className="flex items-center justify-between text-sm text-gray-700 mt-4">
           <div>
             Showing {filteredAndSortedRecords.length} of {records.length} records
           </div>
