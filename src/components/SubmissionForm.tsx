@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FileText, Users, School, CheckCircle } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { supabase } from '../integrations/supabase/client';
@@ -34,6 +34,86 @@ const SubmissionForm = () => {
     'Nursing',
     'Accountancy'
   ];
+
+  // Floating orbs animation
+  const [orbs, setOrbs] = useState<Array<{
+    id: number;
+    size: number;
+    color: string;
+    top: number;
+    left: number;
+    xSpeed: number;
+    ySpeed: number;
+    opacity: number;
+    zIndex: number;
+    blur: number;
+  }>>([]);
+
+  useEffect(() => {
+    // Initialize orbs with random properties
+    const colors = [
+      'bg-red-200', 'bg-blue-200', 'bg-pink-200', 
+      'bg-purple-200', 'bg-amber-200', 'bg-emerald-200'
+    ];
+    
+    const initialOrbs = Array.from({ length: 15 }, (_, i) => {
+      const size = Math.random() * 80 + 10; // 10-90px
+      return {
+        id: i,
+        size,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        top: Math.random() * 100,
+        left: Math.random() * 100,
+        xSpeed: (Math.random() - 0.5) * (0.1 + size/400), // Larger orbs move slower
+        ySpeed: (Math.random() - 0.5) * (0.1 + size/400),
+        opacity: Math.random() * 0.4 + 0.1, // 0.1-0.5 opacity
+        zIndex: Math.floor(size / 30), // Larger orbs appear behind
+        blur: Math.floor(size / 20) // Larger orbs get more blur
+      };
+    });
+    setOrbs(initialOrbs);
+
+    // Animation loop with smoother movement
+    let lastTime = 0;
+    const animationFrame = requestAnimationFrame(function animate(time) {
+      const deltaTime = time - lastTime;
+      lastTime = time;
+      
+      setOrbs(prevOrbs => 
+        prevOrbs.map(orb => {
+          let newLeft = orb.left + orb.xSpeed * (deltaTime / 16);
+          let newTop = orb.top + orb.ySpeed * (deltaTime / 16);
+          let newXSpeed = orb.xSpeed;
+          let newYSpeed = orb.ySpeed;
+
+          // Bounce off edges with slight randomness
+          if (newLeft <= 0 || newLeft >= 100) {
+            newXSpeed *= -1 * (0.9 + Math.random() * 0.2);
+          }
+          if (newTop <= 0 || newTop >= 100) {
+            newYSpeed *= -1 * (0.9 + Math.random() * 0.2);
+          }
+
+          // Occasionally change direction slightly
+          if (Math.random() > 0.98) {
+            newXSpeed *= (0.9 + Math.random() * 0.2);
+            newYSpeed *= (0.9 + Math.random() * 0.2);
+          }
+
+          return {
+            ...orb,
+            left: newLeft,
+            top: newTop,
+            xSpeed: newXSpeed,
+            ySpeed: newYSpeed
+          };
+        })
+      );
+      requestAnimationFrame(animate);
+    });
+
+    return () => cancelAnimationFrame(animationFrame);
+  }, []);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({
@@ -97,16 +177,28 @@ const SubmissionForm = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-red-50 via-pink-50 to-blue-50 py-8 relative">
-      {/* Animated Background Elements */}
-      <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
-        <div className="absolute top-10 left-10 w-20 h-20 bg-red-200 rounded-full opacity-30"></div>
-        <div className="absolute top-32 right-20 w-16 h-16 bg-blue-200 rounded-full opacity-30"></div>
-        <div className="absolute bottom-20 left-20 w-24 h-24 bg-pink-200 rounded-full opacity-30"></div>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-red-50 via-pink-50 to-blue-50 py-8 relative overflow-hidden">
+      {/* Enhanced Animated Floating Orbs */}
+      {orbs.map(orb => (
+        <div
+          key={orb.id}
+          className={`absolute rounded-full ${orb.color} opacity-[${orb.opacity}] blur-[${orb.blur}px]`}
+          style={{
+            width: `${orb.size}px`,
+            height: `${orb.size}px`,
+            top: `${orb.top}%`,
+            left: `${orb.left}%`,
+            transform: 'translate(-50%, -50%)',
+            zIndex: orb.zIndex,
+            filter: `blur(${orb.blur}px)`,
+            opacity: orb.opacity,
+            transition: 'top 0.5s ease-out, left 0.5s ease-out'
+          }}
+        />
+      ))}
 
-      <div className="max-w-4xl mx-auto px-4 relative">
-        <div className="bg-white rounded-2xl shadow-lg p-8">
+      <div className="max-w-4xl mx-auto px-4 relative z-10">
+        <div className="bg-white rounded-2xl shadow-lg p-8 backdrop-blur-sm bg-opacity-90">
           {/* Header */}
           <div className="text-center mb-8">
             <div className="flex items-center justify-center space-x-3 mb-4">
