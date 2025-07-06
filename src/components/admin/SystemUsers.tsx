@@ -29,13 +29,44 @@ const SystemUsers = () => {
   const { toast } = useToast();
   const { user: currentUser } = useAuth();
 
+  // Set up real-time subscription for last_login updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('system-users-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'system_users',
+          filter: 'last_login=not.is.null'
+        },
+        (payload) => {
+          console.log('Real-time login update:', payload);
+          setUsers(prevUsers => 
+            prevUsers.map(user => 
+              user.id === payload.new.id 
+                ? { ...user, last_login: payload.new.last_login }
+                : user
+            )
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      console.log('Cleaning up real-time subscription');
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   // Fetch users from database
   const fetchUsers = async () => {
     try {
       const { data, error } = await supabase
         .from('system_users')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('last_login', { ascending: false, nullsFirst: false });
 
       if (error) {
         console.error('Error fetching users:', error);
@@ -47,6 +78,7 @@ const SystemUsers = () => {
         return;
       }
 
+      console.log('Fetched users with login times:', data);
       setUsers(data || []);
     } catch (error) {
       console.error('Error fetching users:', error);
@@ -91,10 +123,9 @@ const SystemUsers = () => {
     }
 
     try {
-      // First, create the auth user using Supabase Admin API
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: newUser.email,
-        password: 'TempPassword123!', // You might want to generate a random password
+        password: 'TempPassword123!',
         options: {
           data: {
             full_name: newUser.name
@@ -121,7 +152,6 @@ const SystemUsers = () => {
         return;
       }
 
-      // Now create the system user record with the actual auth user ID
       const { data, error } = await supabase
         .from('system_users')
         .insert([{
@@ -135,7 +165,6 @@ const SystemUsers = () => {
 
       if (error) {
         console.error('Error adding system user:', error);
-        // If system user creation fails, we should clean up the auth user
         await supabase.auth.admin.deleteUser(authData.user.id);
         toast({
           title: "Error",
@@ -152,7 +181,7 @@ const SystemUsers = () => {
 
       setShowAddUser(false);
       setNewUser({ name: '', email: '', role: 'Reader', status: 'Active' });
-      fetchUsers(); // Refresh the list
+      fetchUsers();
     } catch (error) {
       console.error('Error adding user:', error);
       toast({
@@ -189,7 +218,7 @@ const SystemUsers = () => {
         description: "User deleted successfully",
       });
 
-      fetchUsers(); // Refresh the list
+      fetchUsers();
     } catch (error) {
       console.error('Error deleting user:', error);
       toast({
@@ -201,8 +230,16 @@ const SystemUsers = () => {
   };
 
   const formatDate = (dateString: string | null) => {
-    if (!dateString) return 'Never';
-    return new Date(dateString).toLocaleDateString('en-US', {
+    if (!dateString) return 'Never logged in';
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
+    
+    if (diffInMinutes < 1) return 'Just now';
+    if (diffInMinutes < 60) return `${diffInMinutes} minutes ago`;
+    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)} hours ago`;
+    
+    return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -377,9 +414,18 @@ const SystemUsers = () => {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center text-sm text-gray-900">
+                    <div className="flex items-center text-sm">
                       <Calendar className="h-4 w-4 text-gray-400 mr-2" />
-                      {formatDate(user.last_login)}
+                      <div>
+                        <div className={`${user.last_login ? 'text-gray-900' : 'text-gray-500'}`}>
+                          {formatDate(user.last_login)}
+                        </div>
+                        {user.last_login && (
+                          <div className="text-xs text-gray-400">
+                            {new Date(user.last_login).toLocaleDateString()}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -421,10 +467,10 @@ const SystemUsers = () => {
           <div className="text-sm text-gray-600">Active Users</div>
         </div>
         <div className="card-hover p-4 text-center">
-          <div className="text-2xl font-bold text-red-600">
-            {users.filter(u => u.status === 'Inactive').length}
+          <div className="text-2xl font-bold text-blue-600">
+            {users.filter(u => u.last_login && new Date(u.last_login) > new Date(Date.now() - 24 * 60 * 60 * 1000)).length}
           </div>
-          <div className="text-sm text-gray-600">Inactive Users</div>
+          <div className="text-sm text-gray-600">Active Today</div>
         </div>
       </div>
     </div>

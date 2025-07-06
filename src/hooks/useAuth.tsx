@@ -25,6 +25,25 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
+// Function to update last login timestamp
+const updateLastLogin = async (userId: string) => {
+  try {
+    console.log('Updating last login for user:', userId);
+    const { error } = await supabase
+      .from('system_users')
+      .update({ last_login: new Date().toISOString() })
+      .eq('user_id', userId);
+
+    if (error) {
+      console.error('Error updating last login:', error);
+    } else {
+      console.log('Successfully updated last login timestamp');
+    }
+  } catch (error) {
+    console.error('Failed to update last login:', error);
+  }
+};
+
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -33,11 +52,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      async (event, session) => {
         console.log('Auth state changed:', event, session?.user?.email);
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
+
+        // Update last login timestamp when user signs in
+        if (event === 'SIGNED_IN' && session?.user) {
+          // Use setTimeout to defer the database call and prevent potential deadlocks
+          setTimeout(() => {
+            updateLastLogin(session.user.id);
+          }, 0);
+        }
       }
     );
 
@@ -70,7 +97,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       console.log('Sign in successful:', data.user?.email);
-      // The onAuthStateChange listener will handle updating the state
+      // The onAuthStateChange listener will handle updating the state and last login
     } catch (error) {
       console.error('Sign in failed:', error);
       throw error;
