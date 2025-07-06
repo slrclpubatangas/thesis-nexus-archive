@@ -25,17 +25,48 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
-// Function to update last login timestamp
+// Function to update or create last login timestamp
 const updateLastLogin = async (userId: string) => {
   try {
     console.log('Updating last login for user:', userId);
-    const { error } = await supabase
+    
+    // First, try to update existing record
+    const { data: updateData, error: updateError } = await supabase
       .from('system_users')
       .update({ last_login: new Date().toISOString() })
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .select();
 
-    if (error) {
-      console.error('Error updating last login:', error);
+    if (updateError) {
+      console.error('Error updating last login:', updateError);
+      return;
+    }
+
+    // If no rows were updated, the user doesn't exist in system_users
+    if (!updateData || updateData.length === 0) {
+      console.log('User not found in system_users, checking if we should create record...');
+      
+      // Get user info from auth.users to create system_users record
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        console.log('Creating system_users record for:', user.email);
+        const { error: insertError } = await supabase
+          .from('system_users')
+          .insert([{
+            user_id: userId,
+            name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Unknown User',
+            email: user.email || '',
+            role: 'Reader' as const,
+            status: 'Active' as const,
+            last_login: new Date().toISOString()
+          }]);
+
+        if (insertError) {
+          console.error('Error creating system_users record:', insertError);
+        } else {
+          console.log('Successfully created system_users record with login timestamp');
+        }
+      }
     } else {
       console.log('Successfully updated last login timestamp');
     }
