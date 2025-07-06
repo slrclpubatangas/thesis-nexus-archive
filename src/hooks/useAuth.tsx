@@ -75,6 +75,29 @@ const updateLastLogin = async (userId: string) => {
   }
 };
 
+// Function to check if user is active
+const checkUserStatus = async (userId: string): Promise<boolean> => {
+  try {
+    const { data, error } = await supabase
+      .from('system_users')
+      .select('status')
+      .eq('user_id', userId)
+      .single();
+
+    if (error) {
+      console.error('Error checking user status:', error);
+      // If user doesn't exist in system_users, allow login (new users)
+      return true;
+    }
+
+    return data.status === 'Active';
+  } catch (error) {
+    console.error('Failed to check user status:', error);
+    // Default to allowing login if we can't check status
+    return true;
+  }
+};
+
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -85,17 +108,34 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state changed:', event, session?.user?.email);
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
-
-        // Update last login timestamp when user signs in
+        
+        // Check user status before setting session for signed-in users
         if (event === 'SIGNED_IN' && session?.user) {
+          const isActive = await checkUserStatus(session.user.id);
+          
+          if (!isActive) {
+            console.log('User is inactive, signing out...');
+            await supabase.auth.signOut();
+            setSession(null);
+            setUser(null);
+            setLoading(false);
+            return;
+          }
+          
+          // User is active, proceed with login
+          setSession(session);
+          setUser(session.user);
+          
           // Use setTimeout to defer the database call and prevent potential deadlocks
           setTimeout(() => {
             updateLastLogin(session.user.id);
           }, 0);
+        } else {
+          setSession(session);
+          setUser(session?.user ?? null);
         }
+        
+        setLoading(false);
       }
     );
 
@@ -125,6 +165,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (error) {
         console.error('Sign in error:', error);
         throw error;
+      }
+
+      if (data.user) {
+        // Check if user is active before completing sign in
+        const isActive = await checkUserStatus(data.user.id);
+        
+        if (!isActive) {
+          // Sign out immediately if user is inactive
+          await supabase.auth.signOut();
+          throw new Error('Your account has been deactivated. Please contact an administrator.');
+        }
       }
 
       console.log('Sign in successful:', data.user?.email);

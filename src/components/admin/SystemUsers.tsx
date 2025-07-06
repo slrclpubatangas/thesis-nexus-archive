@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Edit, Trash2, Shield, User, Mail, Calendar } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Shield, User, Mail, Calendar, X, Check } from 'lucide-react';
 import { supabase } from '../../integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '../../hooks/useAuth';
@@ -18,6 +18,8 @@ interface SystemUser {
 const SystemUsers = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddUser, setShowAddUser] = useState(false);
+  const [showEditUser, setShowEditUser] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<SystemUser | null>(null);
   const [users, setUsers] = useState<SystemUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [newUser, setNewUser] = useState({
@@ -100,6 +102,50 @@ const SystemUsers = () => {
     user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const handleEditUser = (user: SystemUser) => {
+    setSelectedUser(user);
+    setShowEditUser(true);
+  };
+
+  const handleUpdateUserStatus = async () => {
+    if (!selectedUser) return;
+
+    try {
+      const newStatus = selectedUser.status === 'Active' ? 'Inactive' : 'Active';
+      
+      const { error } = await supabase
+        .from('system_users')
+        .update({ status: newStatus })
+        .eq('id', selectedUser.id);
+
+      if (error) {
+        console.error('Error updating user status:', error);
+        toast({
+          title: "Error",
+          description: "Failed to update user status",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Success",
+        description: `User status updated to ${newStatus}`,
+      });
+
+      setShowEditUser(false);
+      setSelectedUser(null);
+      fetchUsers();
+    } catch (error) {
+      console.error('Error updating user status:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update user status",
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -356,6 +402,88 @@ const SystemUsers = () => {
         </div>
       )}
 
+      {/* Edit User Modal */}
+      {showEditUser && selectedUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-800">Edit User Status</h3>
+              <button
+                onClick={() => {
+                  setShowEditUser(false);
+                  setSelectedUser(null);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  User
+                </label>
+                <div className="flex items-center space-x-3">
+                  <div className="h-10 w-10 bg-red-100 rounded-full flex items-center justify-center">
+                    <User className="h-5 w-5 text-red-600" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium text-gray-900">{selectedUser.name}</div>
+                    <div className="text-sm text-gray-500">{selectedUser.email}</div>
+                  </div>
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Current Status
+                </label>
+                <div className="flex items-center space-x-2">
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                    selectedUser.status === 'Active' 
+                      ? 'bg-green-100 text-green-800' 
+                      : 'bg-red-100 text-red-800'
+                  }`}>
+                    {selectedUser.status}
+                  </span>
+                </div>
+              </div>
+              
+              <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                <p className="text-sm text-yellow-800">
+                  {selectedUser.status === 'Active' 
+                    ? 'Deactivating this user will prevent them from logging in.'
+                    : 'Activating this user will allow them to log in again.'
+                  }
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex space-x-3 mt-6">
+              <button
+                onClick={handleUpdateUserStatus}
+                className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 flex items-center justify-center space-x-2"
+              >
+                <Check size={16} />
+                <span>
+                  {selectedUser.status === 'Active' ? 'Deactivate User' : 'Activate User'}
+                </span>
+              </button>
+              <button
+                onClick={() => {
+                  setShowEditUser(false);
+                  setSelectedUser(null);
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Users Table */}
       <div className="card-hover overflow-hidden">
         <div className="overflow-x-auto">
@@ -430,12 +558,17 @@ const SystemUsers = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
-                      <button className="text-blue-600 hover:text-blue-900">
+                      <button 
+                        onClick={() => handleEditUser(user)}
+                        className="text-blue-600 hover:text-blue-900"
+                        title="Edit user status"
+                      >
                         <Edit size={16} />
                       </button>
                       <button 
                         onClick={() => handleDeleteUser(user.id)}
                         className="text-red-600 hover:text-red-900"
+                        title="Delete user"
                       >
                         <Trash2 size={16} />
                       </button>
