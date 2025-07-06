@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend } from 'recharts';
 import { Users, FileText, TrendingUp, Calendar, School, BookOpen, X, Filter, Star, MessageSquare } from 'lucide-react';
 import { supabase } from '../../integrations/supabase/client';
+import ExportButton from './ExportButton';
 
 interface StatisticsTabProps {
   userRole?: 'Admin' | 'Reader' | null;
@@ -228,14 +229,22 @@ const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
               {userRole === 'Reader' ? 'View thesis submission analytics' : 'Overview of thesis submissions and system analytics'}
             </p>
           </div>
-          <button 
-            onClick={fetchStatistics}
-            className="btn-secondary flex items-center space-x-2"
-            disabled={loading}
-          >
-            <TrendingUp size={16} />
-            <span>Refresh</span>
-          </button>
+          <div className="flex items-center space-x-3">
+            <ExportButton 
+              stats={stats}
+              selectedYear={selectedYear}
+              dateRange={dateRange}
+              disabled={loading}
+            />
+            <button 
+              onClick={fetchStatistics}
+              className="btn-secondary flex items-center space-x-2"
+              disabled={loading}
+            >
+              <TrendingUp size={16} />
+              <span>Refresh</span>
+            </button>
+          </div>
         </div>
 
         {/* Date Filters */}
