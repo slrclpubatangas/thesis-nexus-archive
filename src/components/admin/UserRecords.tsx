@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Filter, Download, Eye, Edit, Trash2, X, Calendar, MapPin } from 'lucide-react';
 import { supabase } from '../../integrations/supabase/client';
 import { useToast } from '../../hooks/use-toast';
+import UserRecordsExportDialog from './UserRecordsExportDialog';
 
 interface ThesisSubmission {
   id: string;
@@ -266,13 +267,20 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
           >
             <span>Refresh</span>
           </button>
+          
+          <UserRecordsExportDialog 
+            records={filteredAndSortedRecords}
+            disabled={filteredAndSortedRecords.length === 0}
+          />
+          
           <button 
             onClick={handleExport}
-            className="btn-primary flex items-center space-x-2"
+            className="btn-outline flex items-center space-x-2"
             disabled={filteredAndSortedRecords.length === 0}
+            title="Quick CSV Export"
           >
             <Download size={16} />
-            <span>Export CSV</span>
+            <span>Quick CSV</span>
           </button>
         </div>
       </div>
