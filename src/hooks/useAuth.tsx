@@ -102,12 +102,41 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
-    // Set up auth state listener FIRST
+    let mounted = true;
+
+    const initializeAuth = async () => {
+      try {
+        // Get initial session
+        const { data: { session: initialSession } } = await supabase.auth.getSession();
+        
+        if (mounted) {
+          console.log('Initial session check:', initialSession?.user?.email);
+          setSession(initialSession);
+          setUser(initialSession?.user ?? null);
+          setInitialized(true);
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('Error getting initial session:', error);
+        if (mounted) {
+          setLoading(false);
+          setInitialized(true);
+        }
+      }
+    };
+
+    // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        if (!mounted) return;
+        
         console.log('Auth state changed:', event, session?.user?.email);
+        
+        // Only process events after initialization
+        if (!initialized) return;
         
         // Check user status before setting session for signed-in users
         if (event === 'SIGNED_IN' && session?.user) {
@@ -118,7 +147,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             await supabase.auth.signOut();
             setSession(null);
             setUser(null);
-            setLoading(false);
             return;
           }
           
@@ -129,29 +157,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           // Use setTimeout to defer the database call and prevent potential deadlocks
           setTimeout(() => {
             updateLastLogin(session.user.id);
-          }, 0);
+          }, 100);
         } else {
           setSession(session);
           setUser(session?.user ?? null);
         }
-        
-        setLoading(false);
       }
     );
 
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('Initial session check:', session?.user?.email);
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    // Initialize auth
+    initializeAuth();
 
     return () => {
+      mounted = false;
       console.log('Cleaning up auth subscription');
       subscription.unsubscribe();
     };
   }, []);
+
+  // Update loading state when initialization is complete
+  useEffect(() => {
+    if (initialized) {
+      setLoading(false);
+    }
+  }, [initialized]);
 
   const signIn = async (email: string, password: string) => {
     try {

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { BarChart3, Users, FileText, Settings, Download, Filter } from 'lucide-react';
 import { supabase } from '../../integrations/supabase/client';
 import { useAuth } from '../../hooks/useAuth';
@@ -19,19 +19,24 @@ const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState<TabType>('statistics');
   const [userRole, setUserRole] = useState<'Admin' | 'Reader' | null>(null);
   const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
+  const [roleLoading, setRoleLoading] = useState(true);
+  const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
+  const roleCheckedRef = useRef(false);
 
   // Fetch user role from system_users table
   useEffect(() => {
     const fetchUserRole = async () => {
-      if (!user) {
-        setLoading(false);
+      // Don't fetch if already checked or user is not available
+      if (roleCheckedRef.current || !user || authLoading) {
         return;
       }
 
+      console.log('Fetching user role for user:', user.id);
+      setRoleLoading(true);
+      roleCheckedRef.current = true;
+
       try {
-        console.log('Fetching user role for user:', user.id);
         const { data, error } = await supabase
           .from('system_users')
           .select('role')
@@ -46,6 +51,7 @@ const AdminDashboard = () => {
             description: "Failed to fetch user permissions",
             variant: "destructive",
           });
+          setUserRole('Reader'); // Default fallback
           return;
         }
 
@@ -75,12 +81,23 @@ const AdminDashboard = () => {
         // Default to Reader role on any error to allow basic access
         setUserRole('Reader');
       } finally {
+        setRoleLoading(false);
         setLoading(false);
       }
     };
 
     fetchUserRole();
-  }, [user, toast]);
+  }, [user, authLoading, toast]);
+
+  // Reset role check when user changes
+  useEffect(() => {
+    if (!user) {
+      roleCheckedRef.current = false;
+      setUserRole(null);
+      setRoleLoading(true);
+      setLoading(true);
+    }
+  }, [user]);
 
   const tabs = [
     { id: 'statistics' as TabType, label: 'Statistics', icon: BarChart3, requiredRole: null }, // Available to all
@@ -133,7 +150,8 @@ const AdminDashboard = () => {
     }
   };
 
-  if (loading) {
+  // Show loading if auth is still loading or role is being fetched
+  if (authLoading || loading || roleLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
