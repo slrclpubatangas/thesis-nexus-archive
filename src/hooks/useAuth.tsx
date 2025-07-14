@@ -82,19 +82,27 @@ const checkUserStatus = async (userId: string): Promise<boolean> => {
       .from('system_users')
       .select('status')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error('Error checking user status:', error);
-      // If user doesn't exist in system_users, allow login (new users)
+      // If there's a database error, deny login for security
+      return false;
+    }
+
+    // If user doesn't exist in system_users, allow login (new users will be created)
+    if (!data) {
       return true;
     }
 
-    return data.status === 'Active';
+    // Check if the user's status is 'Active'
+    const isActive = data.status === 'Active';
+    console.log(`User ${userId} status check: ${data.status}, isActive: ${isActive}`);
+    return isActive;
   } catch (error) {
     console.error('Failed to check user status:', error);
-    // Default to allowing login if we can't check status
-    return true;
+    // Default to denying login if we can't check status for security
+    return false;
   }
 };
 
