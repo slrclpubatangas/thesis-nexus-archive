@@ -56,12 +56,15 @@ export const updateLastLogin = async (userId: string) => {
  * Checks if a user is active in the system
  */
 export const checkUserStatus = async (userId: string): Promise<boolean> => {
+  console.log('checkUserStatus called for userId:', userId);
   try {
     const { data, error } = await supabase
       .from('system_users')
       .select('status')
       .eq('user_id', userId)
       .maybeSingle();
+
+    console.log('Database query result:', { data, error });
 
     if (error) {
       console.error('Error checking user status:', error);
@@ -71,6 +74,7 @@ export const checkUserStatus = async (userId: string): Promise<boolean> => {
 
     // If user doesn't exist in system_users, allow login (new users will be created)
     if (!data) {
+      console.log('No user found in system_users, allowing login for new user');
       return true;
     }
 
