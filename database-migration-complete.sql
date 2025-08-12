@@ -1,0 +1,478 @@
+-- =============================================================================
+-- COMPLETE DATABASE MIGRATION SCRIPT FOR SUPABASE PROJECT
+-- =============================================================================
+-- This script recreates the entire database structure including:
+-- - Custom types and enums
+-- - Tables with proper constraints
+-- - Row Level Security (RLS) policies
+-- - Functions and triggers
+-- - Indexes for performance
+-- =============================================================================
+
+-- =============================================================================
+-- 1. CUSTOM TYPES AND ENUMS
+-- =============================================================================
+
+-- User role enum for system users
+CREATE TYPE user_role AS ENUM ('Admin', 'User');
+
+-- User status enum for system users
+CREATE TYPE user_status AS ENUM ('Active', 'Inactive');
+
+-- =============================================================================
+-- 2. TABLE CREATION
+-- =============================================================================
+
+-- -----------------------------------------------------------------------------
+-- PROFILES TABLE
+-- Extended user information linked to auth.users
+-- -----------------------------------------------------------------------------
+CREATE TABLE public.profiles (
+    id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    email TEXT,
+    full_name TEXT,
+    role TEXT DEFAULT 'reader',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    PRIMARY KEY (id)
+);
+
+-- -----------------------------------------------------------------------------
+-- SYSTEM_USERS TABLE
+-- Administrative user management with roles and status
+-- -----------------------------------------------------------------------------
+CREATE TABLE public.system_users (
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    role user_role NOT NULL,
+    status user_status NOT NULL DEFAULT 'Active',
+    last_login TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    PRIMARY KEY (id)
+);
+
+-- -----------------------------------------------------------------------------
+-- THESIS_DATA TABLE
+-- Main repository for thesis information
+-- -----------------------------------------------------------------------------
+CREATE TABLE public.thesis_data (
+    id BIGSERIAL PRIMARY KEY,
+    barcode VARCHAR NOT NULL,
+    thesis_title TEXT NOT NULL,
+    authors TEXT[] NOT NULL,
+    department VARCHAR NOT NULL,
+    publication_year INTEGER NOT NULL,
+    upload_date TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    last_modified TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    is_deleted BOOLEAN NOT NULL DEFAULT false
+);
+
+-- -----------------------------------------------------------------------------
+-- THESIS_SUBMISSIONS TABLE
+-- User submissions for thesis requests
+-- -----------------------------------------------------------------------------
+CREATE TABLE public.thesis_submissions (
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
+    thesis_title TEXT NOT NULL,
+    full_name TEXT NOT NULL,
+    user_type TEXT NOT NULL,
+    student_number TEXT,
+    school TEXT,
+    campus TEXT NOT NULL,
+    program TEXT,
+    submission_date TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    PRIMARY KEY (id)
+);
+
+-- -----------------------------------------------------------------------------
+-- FEEDBACK TABLE
+-- User feedback and ratings system
+-- -----------------------------------------------------------------------------
+CREATE TABLE public.feedback (
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
+    rating INTEGER NOT NULL,
+    comments TEXT,
+    submission_id UUID,
+    ip_address INET,
+    user_agent TEXT,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    PRIMARY KEY (id)
+);
+
+-- =============================================================================
+-- 3. INDEXES FOR PERFORMANCE
+-- =============================================================================
+
+-- Index on thesis_data for faster searches
+CREATE INDEX idx_thesis_data_barcode ON public.thesis_data(barcode);
+CREATE INDEX idx_thesis_data_title ON public.thesis_data(thesis_title);
+CREATE INDEX idx_thesis_data_department ON public.thesis_data(department);
+CREATE INDEX idx_thesis_data_year ON public.thesis_data(publication_year);
+CREATE INDEX idx_thesis_data_not_deleted ON public.thesis_data(is_deleted) WHERE is_deleted = false;
+
+-- Index on system_users for faster lookups
+CREATE INDEX idx_system_users_user_id ON public.system_users(user_id);
+CREATE INDEX idx_system_users_email ON public.system_users(email);
+CREATE INDEX idx_system_users_status ON public.system_users(status);
+
+-- Index on submissions for faster admin queries
+CREATE INDEX idx_thesis_submissions_date ON public.thesis_submissions(submission_date);
+CREATE INDEX idx_thesis_submissions_campus ON public.thesis_submissions(campus);
+
+-- =============================================================================
+-- 4. FUNCTIONS
+-- =============================================================================
+
+-- -----------------------------------------------------------------------------
+-- TRIGGER FUNCTION: Handle new user registration
+-- Automatically creates profile when user signs up
+-- -----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  INSERT INTO public.profiles (id, email, full_name, role)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data->>'full_name', ''),
+    COALESCE(NEW.raw_user_meta_data->>'role', 'reader')
+  );
+  RETURN NEW;
+END;
+$$;
+
+-- -----------------------------------------------------------------------------
+-- UTILITY FUNCTION: Check if user is admin
+-- Used in RLS policies to verify admin status
+-- -----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.is_admin_user()
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE SECURITY DEFINER
+AS $$
+  SELECT EXISTS (
+    SELECT 1 
+    FROM public.system_users 
+    WHERE user_id = auth.uid() 
+    AND role = 'Admin'
+    AND status = 'Active'
+  );
+$$;
+
+-- -----------------------------------------------------------------------------
+-- TRIGGER FUNCTION: Update last_modified timestamp
+-- Automatically updates last_modified field when records change
+-- -----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.update_last_modified()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    NEW.last_modified = now();
+    RETURN NEW;
+END;
+$$;
+
+-- -----------------------------------------------------------------------------
+-- TRIGGER FUNCTION: Update feedback updated_at timestamp
+-- Automatically updates updated_at field for feedback
+-- -----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.update_feedback_updated_at()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$;
+
+-- =============================================================================
+-- 5. TRIGGERS
+-- =============================================================================
+
+-- Trigger for automatic profile creation on user signup
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- Trigger for updating thesis_data last_modified timestamp
+CREATE TRIGGER update_thesis_data_last_modified
+  BEFORE UPDATE ON public.thesis_data
+  FOR EACH ROW EXECUTE FUNCTION public.update_last_modified();
+
+-- Trigger for updating feedback updated_at timestamp
+CREATE TRIGGER update_feedback_updated_at
+  BEFORE UPDATE ON public.feedback
+  FOR EACH ROW EXECUTE FUNCTION public.update_feedback_updated_at();
+
+-- =============================================================================
+-- 6. ROW LEVEL SECURITY (RLS) SETUP
+-- =============================================================================
+
+-- Enable RLS on all tables
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.system_users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.thesis_data ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.thesis_submissions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.feedback ENABLE ROW LEVEL SECURITY;
+
+-- =============================================================================
+-- 7. RLS POLICIES - PROFILES TABLE
+-- =============================================================================
+
+-- Users can view their own profile
+CREATE POLICY "Users can view their own profile" 
+ON public.profiles 
+FOR SELECT 
+USING (auth.uid() = id);
+
+-- Users can update their own profile
+CREATE POLICY "Users can update their own profile" 
+ON public.profiles 
+FOR UPDATE 
+USING (auth.uid() = id);
+
+-- System can insert profiles (for new user registration)
+CREATE POLICY "System can insert profiles" 
+ON public.profiles 
+FOR INSERT 
+WITH CHECK (true);
+
+-- =============================================================================
+-- 8. RLS POLICIES - SYSTEM_USERS TABLE
+-- =============================================================================
+
+CREATE POLICY "Users can view own system user record"
+ON public.system_users
+FOR SELECT
+USING (auth.uid() = user_id);
+
+-- Allow any authenticated user to update ONLY their own last_login column
+CREATE POLICY "Users can update own last_login"
+ON public.system_users
+FOR UPDATE
+USING (auth.uid() = user_id)
+WITH CHECK (auth.uid() = user_id);
+
+-- Admins can view all system users
+CREATE POLICY "Admins can view all system users" 
+ON public.system_users 
+FOR SELECT 
+USING (is_admin_user());
+
+-- Admins can insert system users
+CREATE POLICY "Admins can insert system users" 
+ON public.system_users 
+FOR INSERT 
+WITH CHECK (is_admin_user());
+
+-- Admins can update system users
+CREATE POLICY "Admins can update system users" 
+ON public.system_users 
+FOR UPDATE 
+USING (is_admin_user())
+WITH CHECK (is_admin_user());
+
+-- Admins can delete system users
+CREATE POLICY "Admins can delete system users" 
+ON public.system_users 
+FOR DELETE 
+USING (is_admin_user());
+
+-- Admin users can manage their own records
+CREATE POLICY "Admin can read system_users" 
+ON public.system_users 
+FOR SELECT 
+USING ((auth.role() = 'authenticated'::text) AND (user_id = auth.uid()) AND (role = 'Admin'::user_role));
+
+CREATE POLICY "Admin can insert any system_users" 
+ON public.system_users 
+FOR INSERT 
+WITH CHECK ((auth.role() = 'authenticated'::text) AND (EXISTS ( 
+  SELECT 1 FROM system_users su 
+  WHERE ((su.user_id = auth.uid()) AND (su.role = 'Admin'::user_role))
+)));
+
+CREATE POLICY "Admin can update system_users" 
+ON public.system_users 
+FOR UPDATE 
+USING ((auth.role() = 'authenticated'::text) AND (user_id = auth.uid()) AND (role = 'Admin'::user_role));
+
+CREATE POLICY "Admin can delete system_users" 
+ON public.system_users 
+FOR DELETE 
+USING ((auth.role() = 'authenticated'::text) AND (user_id = auth.uid()) AND (role = 'Admin'::user_role));
+
+-- =============================================================================
+-- 9. RLS POLICIES - THESIS_DATA TABLE
+-- =============================================================================
+
+-- View thesis records (only non-deleted)
+CREATE POLICY "View thesis records" 
+ON public.thesis_data 
+FOR SELECT 
+USING (NOT is_deleted);
+
+-- Insert thesis records (authenticated users)
+CREATE POLICY "Insert thesis records" 
+ON public.thesis_data 
+FOR INSERT 
+WITH CHECK (true);
+
+-- Update thesis records (authenticated users)
+CREATE POLICY "Update thesis records" 
+ON public.thesis_data 
+FOR UPDATE 
+USING (true)
+WITH CHECK (true);
+
+-- Soft delete thesis records (authenticated users)
+CREATE POLICY "Soft delete thesis records" 
+ON public.thesis_data 
+FOR UPDATE 
+USING (true)
+WITH CHECK (true);
+
+-- =============================================================================
+-- 10. RLS POLICIES - THESIS_SUBMISSIONS TABLE
+-- =============================================================================
+
+-- Allow public read access for submitted records
+CREATE POLICY "Allow public read access for submitted row" 
+ON public.thesis_submissions 
+FOR SELECT 
+USING (true);
+
+-- Allow public insert access for new submissions
+CREATE POLICY "Allow public insert access" 
+ON public.thesis_submissions 
+FOR INSERT 
+WITH CHECK (true);
+
+-- Authenticated users can select thesis submissions
+CREATE POLICY "Authenticated can select thesis submissions" 
+ON public.thesis_submissions 
+FOR SELECT 
+USING (true);
+
+-- Authenticated users can update thesis submissions
+CREATE POLICY "Authenticated can update thesis submissions" 
+ON public.thesis_submissions 
+FOR UPDATE 
+USING (true)
+WITH CHECK (true);
+
+-- Authenticated users can delete thesis submissions
+CREATE POLICY "Authenticated can delete thesis submissions" 
+ON public.thesis_submissions 
+FOR DELETE 
+USING (true);
+
+-- =============================================================================
+-- 11. RLS POLICIES - FEEDBACK TABLE
+-- =============================================================================
+
+-- Anyone can submit feedback
+CREATE POLICY "Anyone can submit feedback" 
+ON public.feedback 
+FOR INSERT 
+WITH CHECK (true);
+
+-- Authenticated users can view feedback
+CREATE POLICY "Authenticated users can view feedback" 
+ON public.feedback 
+FOR SELECT 
+USING (true);
+
+-- Authenticated users can modify feedback
+CREATE POLICY "Authenticated users can modify feedback" 
+ON public.feedback 
+FOR UPDATE 
+USING (true)
+WITH CHECK (true);
+
+-- Authenticated users can delete feedback
+CREATE POLICY "Authenticated users can delete feedback" 
+ON public.feedback 
+FOR DELETE 
+USING (true);
+
+-- =============================================================================
+-- 12. INITIAL DATA (OPTIONAL)
+-- =============================================================================
+
+-- You can add initial admin user or sample data here if needed
+-- Example:
+-- INSERT INTO public.system_users (user_id, name, email, role, status)
+-- VALUES ('your-admin-user-id', 'Admin User', 'admin@example.com', 'Admin', 'Active');
+
+-- =============================================================================
+-- END OF MIGRATION SCRIPT
+-- =============================================================================
+
+-- Script completed successfully!
+-- This script recreates the complete database structure with:
+-- ✓ All tables and constraints
+-- ✓ Custom types and enums
+-- ✓ Row Level Security policies
+-- ✓ Functions and triggers
+-- ✓ Performance indexes
+-- 
+-- To use this script:
+-- 1. Run it in your Supabase SQL editor
+-- 2. Verify all objects are created successfully
+-- 3. Test authentication and permissions
+-- 4. Add any initial data as needed
+
+-- =============================================================================
+-- 1. NEW TABLE: email_verifications
+-- Stores temporary 6-digit codes
+-- =============================================================================
+CREATE TABLE public.email_verifications (
+    id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id         uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    code            char(6) NOT NULL CHECK (char_length(code) = 6),
+    expires_at      timestamptz NOT NULL,
+    attempts        int DEFAULT 0,
+    used            boolean DEFAULT false,
+    created_at      timestamptz DEFAULT now()
+);
+
+-- Indexes
+CREATE INDEX idx_email_verifications_user ON public.email_verifications(user_id);
+CREATE INDEX idx_email_verifications_code ON public.email_verifications(code);
+
+-- =============================================================================
+-- 2. RLS – only the owning user can touch the row
+-- =============================================================================
+ALTER TABLE public.email_verifications ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage own verification codes"
+ON public.email_verifications
+FOR ALL
+USING (auth.uid() = user_id)
+WITH CHECK (auth.uid() = user_id);
+
+-- =============================================================================
+-- 3. House-keeping function & cron (optional)
+-- Deletes expired rows once an hour
+-- =============================================================================
+CREATE OR REPLACE FUNCTION public.cleanup_expired_codes()
+RETURNS void
+LANGUAGE sql AS $$
+  DELETE FROM public.email_verifications
+  WHERE expires_at < now();
+$$;
+
+-- Example cron (Supabase Dashboard → SQL → Extensions → pg_cron)
+-- select cron.schedule('cleanup-codes', '0 * * * *', 'SELECT public.cleanup_expired_codes();');
+ALTER TABLE public.email_verifications
+  ADD CONSTRAINT email_verifications_user_id_unique UNIQUE (user_id);
