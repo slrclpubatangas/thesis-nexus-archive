@@ -108,13 +108,19 @@ export const exportUserRecordsToPDF = async (
       xPosition = margin;
       enabledColumns.forEach((col, index) => {
         let value = record[col.key];
-        
-        // Format specific fields
-        if (col.key === 'submission_date') {
-          value = new Date(value as string).toLocaleDateString();
-        } else if (col.key === 'user_type') {
-          value = value === 'LPU Student' ? 'LPU' : 'Non-LPU';
-        }
+
+// Format specific fields
+if (col.key === 'submission_date') {
+  value = new Date(value as string).toLocaleDateString();
+} else if (col.key === 'created_at') {
+  value = new Date(value as string).toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+} else if (col.key === 'user_type') {
+  value = value === 'LPU Student' ? 'LPU' : 'Non-LPU';
+}
 
         // Truncate long text
         let displayValue = (value || '').toString();

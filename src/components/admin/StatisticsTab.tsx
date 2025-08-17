@@ -148,7 +148,8 @@ const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
       const feedbackStats = {
         totalFeedback: feedback?.length || 0,
         averageRating: feedback?.length ? 
-          Math.round((feedback.reduce((sum, f) => sum + f.rating, 0) / feedback.length) * 10) / 10 : 0,
+          Math.round((feedback.reduce((sum: number, f: any) => sum + f.rating, 0) / feedback.length) * 10) / 10
+    : 0,
         ratingDistribution: [1, 2, 3, 4, 5].map(rating => ({
           rating,
           count: feedback?.filter(f => f.rating === rating).length || 0
@@ -235,15 +236,9 @@ const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
               selectedYear={selectedYear}
               dateRange={dateRange}
               disabled={loading}
+              onRefresh={fetchStatistics}
             />
-            <button 
-              onClick={fetchStatistics}
-              className="btn-secondary flex items-center space-x-2"
-              disabled={loading}
-            >
-              <TrendingUp size={16} />
-              <span>Refresh</span>
-            </button>
+            
           </div>
         </div>
 

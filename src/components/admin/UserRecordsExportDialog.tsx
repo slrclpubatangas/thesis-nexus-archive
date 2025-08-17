@@ -1,6 +1,9 @@
-
 import React, { useState } from 'react';
-import { Download, FileText, FileSpreadsheet, X, Check } from 'lucide-react';
+import {
+  Download,
+  FileText,
+  FileSpreadsheet,
+} from 'lucide-react';
 import { Button } from '../ui/button';
 import {
   Dialog,
@@ -33,6 +36,7 @@ interface ThesisSubmission {
   program: string | null;
   thesis_title: string;
   submission_date: string;
+  created_at: string;
 }
 
 interface Column {
@@ -46,9 +50,27 @@ interface UserRecordsExportDialogProps {
   disabled?: boolean;
 }
 
-const UserRecordsExportDialog: React.FC<UserRecordsExportDialogProps> = ({ 
-  records, 
-  disabled = false 
+// 1. Parse safely, return a Date or null
+const safeDate = (d: string | null | undefined): Date | null => {
+  if (!d) return null;
+  const dt = new Date(d);
+  return isNaN(dt.getTime()) ? null : dt;
+};
+
+// 2. Format helpers
+const formatTimeCreated = (d: string | null | undefined) =>
+  safeDate(d)?.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  }) ?? (d || 'N/A');
+
+const formatSubmissionDate = (d: string | null | undefined) =>
+  safeDate(d)?.toLocaleDateString() ?? (d || 'N/A');
+
+const UserRecordsExportDialog: React.FC<UserRecordsExportDialogProps> = ({
+  records,
+  disabled = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [exportFormat, setExportFormat] = useState<'csv' | 'pdf'>('csv');
@@ -64,25 +86,31 @@ const UserRecordsExportDialog: React.FC<UserRecordsExportDialogProps> = ({
     { key: 'program', label: 'Program', enabled: true },
     { key: 'thesis_title', label: 'Thesis Title', enabled: true },
     { key: 'submission_date', label: 'Submission Date', enabled: true },
+    { key: 'created_at', label: 'Time Created', enabled: true },
   ]);
 
-  const handleColumnToggle = (index: number) => {
-    setColumns(prev => prev.map((col, i) => 
-      i === index ? { ...col, enabled: !col.enabled } : col
-    ));
-  };
+  const handleColumnToggle = (index: number) =>
+    setColumns(prev =>
+      prev.map((col, i) =>
+        i === index ? { ...col, enabled: !col.enabled } : col
+      )
+    );
 
   const handleSelectAll = () => {
     const allEnabled = columns.every(col => col.enabled);
     setColumns(prev => prev.map(col => ({ ...col, enabled: !allEnabled })));
   };
 
+  
+
+
+
   const handleExport = async () => {
     if (records.length === 0) {
       toast({
-        title: "No Data to Export",
-        description: "There are no records to export.",
-        variant: "destructive",
+        title: 'No Data to Export',
+        description: 'There are no records to export.',
+        variant: 'destructive',
       });
       return;
     }
@@ -90,53 +118,46 @@ const UserRecordsExportDialog: React.FC<UserRecordsExportDialogProps> = ({
     const enabledColumns = columns.filter(col => col.enabled);
     if (enabledColumns.length === 0) {
       toast({
-        title: "No Columns Selected",
-        description: "Please select at least one column to export.",
-        variant: "destructive",
+        title: 'No Columns Selected',
+        description: 'Please select at least one column to export.',
+        variant: 'destructive',
       });
       return;
     }
 
-    setIsExporting(true);
-
-    try {
-      if (exportFormat === 'csv') {
-        await exportToCSV(records, enabledColumns);
-      } else {
-        await exportUserRecordsToPDF(records, enabledColumns);
-      }
-
-      toast({
-        title: "Export Successful",
-        description: `Records exported to ${exportFormat.toUpperCase()} successfully.`,
-      });
-
-      setIsOpen(false);
-    } catch (error) {
-      console.error('Export error:', error);
-      toast({
-        title: "Export Failed",
-        description: error instanceof Error ? error.message : "An unexpected error occurred during export.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsExporting(false);
-    }
+    // inside handleExport(...)
+setIsExporting(true);
+try {
+  if (exportFormat === 'csv') {
+    const processedRecords = records.map(r => ({
+      ...r,
+      created_at: formatTimeCreated(r.created_at),
+      submission_date: formatSubmissionDate(r.submission_date),
+    }));
+    await exportToCSV(processedRecords, enabledColumns);
+  } else {
+    // PDF gets raw ISO strings
+    await exportUserRecordsToPDF(records, enabledColumns);
+  }
+  toast({ title: 'Export Successful', description: `Records exported to ${exportFormat.toUpperCase()} successfully.` });
+  setIsOpen(false);
+} finally {
+  setIsExporting(false);
+}
   };
 
   const exportToCSV = async (data: ThesisSubmission[], selectedColumns: Column[]) => {
     const headers = selectedColumns.map(col => col.label);
     const csvContent = [
       headers.join(','),
-      ...data.map(record => 
-        selectedColumns.map(col => {
-          let value = record[col.key];
-          if (col.key === 'submission_date') {
-            value = new Date(value as string).toLocaleDateString();
-          }
-          return `"${value || ''}"`;
-        }).join(',')
-      )
+      ...data.map(record =>
+        selectedColumns
+          .map(col => {
+            const value = record[col.key] as string | null | undefined;
+            return `"${value ?? ''}"`;
+          })
+          .join(',')
+      ),
     ].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -165,7 +186,7 @@ const UserRecordsExportDialog: React.FC<UserRecordsExportDialogProps> = ({
           <span>Export Records</span>
         </Button>
       </DialogTrigger>
-      
+
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center space-x-2">
@@ -183,7 +204,10 @@ const UserRecordsExportDialog: React.FC<UserRecordsExportDialogProps> = ({
             <Label htmlFor="format-select" className="text-sm font-medium">
               Export Format
             </Label>
-            <Select value={exportFormat} onValueChange={(value: 'csv' | 'pdf') => setExportFormat(value)}>
+            <Select
+              value={exportFormat}
+              onValueChange={(value: 'csv' | 'pdf') => setExportFormat(value)}
+            >
               <SelectTrigger id="format-select">
                 <SelectValue />
               </SelectTrigger>
@@ -220,7 +244,7 @@ const UserRecordsExportDialog: React.FC<UserRecordsExportDialogProps> = ({
                 {allEnabled ? 'Deselect All' : 'Select All'}
               </Button>
             </div>
-            
+
             <div className="grid grid-cols-2 gap-3 max-h-48 overflow-y-auto border rounded-md p-3 bg-gray-50">
               {columns.map((column, index) => (
                 <div key={column.key} className="flex items-center space-x-2">
@@ -245,7 +269,8 @@ const UserRecordsExportDialog: React.FC<UserRecordsExportDialogProps> = ({
             <div className="flex items-center space-x-2 text-sm text-blue-800">
               <FileText className="h-4 w-4" />
               <span>
-                Ready to export {records.length} records with {enabledCount} columns to {exportFormat.toUpperCase()}
+                Ready to export {records.length} records with {enabledCount} columns to{' '}
+                {exportFormat.toUpperCase()}
               </span>
             </div>
           </div>

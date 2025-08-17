@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, useRef } from 'react';
-import { BarChart3, Users, FileText, Settings, Download, Filter } from 'lucide-react';
+import { BarChart3, Users, FileText, Settings, Download, Filter, RefreshCw } from 'lucide-react';
 import { supabase } from '../../integrations/supabase/client';
 import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
@@ -20,6 +19,7 @@ const AdminDashboard = () => {
   const [userRole, setUserRole] = useState<'Admin' | 'Reader' | null>(null);
   const [loading, setLoading] = useState(true);
   const [roleLoading, setRoleLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const roleCheckedRef = useRef(false);
@@ -105,6 +105,29 @@ const AdminDashboard = () => {
     { id: 'thesis' as TabType, label: 'Thesis Data', icon: FileText, requiredRole: 'Admin' }, // Admin only
     { id: 'users' as TabType, label: 'System Users', icon: Settings, requiredRole: 'Admin' }, // Admin only
   ];
+
+  // Function to handle tab click with refresh
+  const handleTabClick = (tabId: TabType) => {
+    // If clicking on the already active tab, refresh the page
+    if (activeTab === tabId) {
+      console.log(`Refreshing ${tabId} tab...`);
+      setIsRefreshing(true);
+      
+      // Show toast notification
+      toast({
+        title: "Refreshing...",
+        description: `Refreshing ${tabs.find(t => t.id === tabId)?.label || 'tab'} data`,
+      });
+      
+      // Small delay to show the animation before refresh
+      setTimeout(() => {
+        window.location.reload();
+      }, 300);
+    } else {
+      // Otherwise, just switch to the new tab
+      setActiveTab(tabId);
+    }
+  };
 
   // Filter tabs based on user role
   const availableTabs = tabs.filter(tab => 
@@ -202,15 +225,32 @@ const AdminDashboard = () => {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center space-x-2 py-4 px-2 border-b-2 font-medium text-sm transition-colors ${
+                  onClick={() => handleTabClick(tab.id)}
+                  className={`relative flex items-center space-x-2 py-4 px-2 border-b-2 font-medium text-sm transition-all duration-200 group ${
                     activeTab === tab.id
                       ? 'border-red-500 text-red-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  } ${
+                    isRefreshing && activeTab === tab.id ? 'opacity-70' : ''
                   }`}
+                  title={activeTab === tab.id ? `Click to refresh ${tab.label}` : `Switch to ${tab.label}`}
+                  disabled={isRefreshing}
                 >
-                  <Icon size={18} />
+                  <Icon size={18} className={isRefreshing && activeTab === tab.id ? 'animate-pulse' : ''} />
                   <span>{tab.label}</span>
+                  {activeTab === tab.id && (
+                    <div className="flex items-center space-x-1">
+                      <RefreshCw 
+                        size={12} 
+                        className={`text-gray-400 group-hover:text-red-500 transition-all duration-200 ${
+                          isRefreshing ? 'animate-spin' : ''
+                        }`} 
+                      />
+                      <span className="text-xs text-gray-400 group-hover:text-gray-600">
+                        {isRefreshing ? 'Refreshing...' : 'Refresh'}
+                      </span>
+                    </div>
+                  )}
                 </button>
               );
             })}

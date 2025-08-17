@@ -4,6 +4,9 @@ import { Search, Filter, Download, Eye, Edit, Trash2, X, Calendar, MapPin } from
 import { supabase } from '../../integrations/supabase/client';
 import { useToast } from '../../hooks/use-toast';
 import UserRecordsExportDialog from './UserRecordsExportDialog';
+import EditUserRecordModal from './EditUserRecordModal';
+import DeleteRecordConfirmDialog from './DeleteRecordConfirmDialog';
+import ViewUserRecordModal from './ViewUserRecordModal';
 
 interface ThesisSubmission {
   id: string;
@@ -15,6 +18,7 @@ interface ThesisSubmission {
   program: string | null;
   thesis_title: string;
   submission_date: string;
+  created_at: string;
 }
 
 interface UserRecordsProps {
@@ -32,6 +36,14 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [records, setRecords] = useState<ThesisSubmission[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editingRecord, setEditingRecord] = useState<ThesisSubmission | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [deletingRecord, setDeletingRecord] = useState<ThesisSubmission | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [viewingRecord, setViewingRecord] = useState<ThesisSubmission | null>(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -95,7 +107,61 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleEdit = (record: ThesisSubmission) => {
+    if (userRole === 'Reader') {
+      toast({
+        title: "Access Restricted",
+        description: "You don't have permission to edit records.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setEditingRecord(record);
+    setIsEditModalOpen(true);
+  };
+
+  const handleEditSave = async (updatedRecord: Partial<ThesisSubmission>) => {
+    try {
+      const { error } = await supabase
+        .from('thesis_submissions')
+        .update({
+          full_name: updatedRecord.full_name,
+          user_type: updatedRecord.user_type,
+          student_number: updatedRecord.student_number,
+          school: updatedRecord.school,
+          campus: updatedRecord.campus,
+          program: updatedRecord.program,
+          thesis_title: updatedRecord.thesis_title,
+        })
+        .eq('id', updatedRecord.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Record updated successfully.",
+      });
+
+      // Refresh records to show updated data
+      fetchRecords();
+    } catch (error) {
+      console.error('Error updating record:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update record. Please try again.",
+        variant: "destructive",
+      });
+      throw error; // Re-throw to let the modal handle the error state
+    }
+  };
+
+  const handleEditModalClose = () => {
+    setIsEditModalOpen(false);
+    setEditingRecord(null);
+  };
+
+  const handleDeleteClick = (record: ThesisSubmission) => {
     if (userRole === 'Reader') {
       toast({
         title: "Access Restricted",
@@ -104,33 +170,77 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
       });
       return;
     }
+    
+    setDeletingRecord(record);
+    setIsDeleteDialogOpen(true);
+  };
 
-    if (!confirm('Are you sure you want to delete this record?')) {
-      return;
-    }
-
+  const handleDeleteConfirm = async () => {
+    if (!deletingRecord) return;
+    
+    setIsDeleting(true);
+    
     try {
+      console.log('Performing hard delete for record:', deletingRecord.id);
+      
       const { error } = await supabase
         .from('thesis_submissions')
         .delete()
-        .eq('id', id);
+        .eq('id', deletingRecord.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Delete error:', error);
+        throw error;
+      }
 
       toast({
-        title: "Success",
-        description: "Record deleted successfully.",
+        title: "Record Permanently Deleted",
+        description: `${deletingRecord.full_name}'s thesis submission record has been permanently removed.`,
       });
 
-      fetchRecords();
+      // Close dialog and refresh data
+      handleDeleteDialogClose();
+      
+      // Show refresh indicator and perform refresh
+      setIsRefreshing(true);
+      console.log('Refreshing data after successful delete...');
+      await fetchRecords();
+      
+      // Additional refresh for real-time sync (similar to export PDF pattern)
+      setTimeout(async () => {
+        console.log('Secondary refresh for data consistency...');
+        await fetchRecords();
+        setIsRefreshing(false);
+      }, 1000);
+      
     } catch (error) {
-      console.error('Error deleting record:', error);
+      console.error('Error performing hard delete:', error);
       toast({
-        title: "Error",
-        description: "Failed to delete record.",
+        title: "Delete Failed",
+        description: "Failed to delete the record. Please try again or contact support if the issue persists.",
         variant: "destructive",
       });
+    } finally {
+      setIsDeleting(false);
     }
+  };
+
+  const handleDeleteDialogClose = () => {
+    if (isDeleting) return; // Prevent closing while delete is in progress
+    
+    setIsDeleteDialogOpen(false);
+    setDeletingRecord(null);
+    setIsDeleting(false);
+  };
+
+  const handleViewClick = (record: ThesisSubmission) => {
+    setViewingRecord(record);
+    setIsViewModalOpen(true);
+  };
+
+  const handleViewModalClose = () => {
+    setIsViewModalOpen(false);
+    setViewingRecord(null);
   };
 
   const uniqueCampuses = Array.from(new Set(records.map(record => record.campus))).sort();
@@ -170,23 +280,22 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
       const matchesCampus = campusFilter === 'all' || record.campus === campusFilter;
 
       let matchesDate = true;
-      const recordDate = new Date(record.submission_date);
-      
-      if (dateFilter) {
-        const filterDate = new Date(dateFilter);
-        matchesDate = recordDate.toDateString() === filterDate.toDateString();
-      } else if (dateRange.start || dateRange.end) {
-        const startDate = dateRange.start ? new Date(dateRange.start) : null;
-        const endDate = dateRange.end ? new Date(dateRange.end) : null;
-        
-        if (startDate && endDate) {
-          matchesDate = recordDate >= startDate && recordDate <= endDate;
-        } else if (startDate) {
-          matchesDate = recordDate >= startDate;
-        } else if (endDate) {
-          matchesDate = recordDate <= endDate;
-        }
-      }
+
+// Helper: strip time → midnight
+const toMidnight = (d: string | null) =>
+  d ? new Date(new Date(d).setHours(0, 0, 0, 0)) : null;
+
+const recMid = toMidnight(record.submission_date);
+const startMid = toMidnight(dateRange.start);
+const endMid = toMidnight(dateRange.end);
+
+if (startMid && endMid) {
+  matchesDate = recMid >= startMid && recMid <= endMid;
+} else if (startMid) {
+  matchesDate = recMid >= startMid;
+} else if (endMid) {
+  matchesDate = recMid <= endMid;
+}
 
       return matchesSearch && matchesUserType && matchesCampus && matchesDate;
     })
@@ -217,7 +326,7 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
     });
 
   const handleExport = () => {
-    const headers = ['Name', 'Type', 'ID/School', 'Campus', 'Program', 'Thesis Title', 'Date'];
+    const headers = ['Name', 'Type', 'ID/School', 'Campus', 'Program', 'Thesis Title', 'Time Created', 'Date'];
     const csvContent = [
       headers.join(','),
       ...filteredAndSortedRecords.map(record => [
@@ -227,6 +336,11 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
         record.campus,
         record.program || '',
         record.thesis_title,
+        new Date(record.created_at).toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        }),
         new Date(record.submission_date).toLocaleDateString()
       ].map(field => `"${field}"`).join(','))
     ].join('\n');
@@ -255,18 +369,20 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">User Records</h2>
-          <p className="text-gray-600">
-            {userRole === 'Reader' ? 'View thesis submission data' : 'Manage and export thesis submission data'} ({records.length} total records)
+          <p className="text-gray-600 flex items-center space-x-2">
+            <span>
+              {userRole === 'Reader' ? 'View thesis submission data' : 'Manage and export thesis submission data'} ({records.length} total records)
+            </span>
+            {isRefreshing && (
+              <div className="flex items-center space-x-2 text-blue-600">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                <span className="text-sm font-medium">Refreshing...</span>
+              </div>
+            )}
           </p>
         </div>
         <div className="flex gap-2">
-          <button 
-            onClick={fetchRecords}
-            className="btn-secondary flex items-center space-x-2"
-            disabled={loading}
-          >
-            <span>Refresh</span>
-          </button>
+          
           
           <UserRecordsExportDialog 
             records={filteredAndSortedRecords}
@@ -416,12 +532,11 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
           </div>
           {(dateRange.start || dateRange.end) && (
             <button
-              onClick={() => setDateRange({ start: '', end: '' })}
-              className="text-red-600 hover:text-red-800 text-sm"
-              title="Clear date range"
-            >
-              <X size={16} />
-            </button>
+            onClick={() => setDateRange({ start: '', end: '' })}
+            className="text-red-600 hover:text-red-800 text-sm"
+          >
+            <X size={16} />
+          </button>
           )}
         </div>
       </div>
@@ -473,40 +588,25 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
         </div>
       )}
 
-      {/* Records List Container */}
-      <div className="card-hover overflow-hidden">
+       {/* Records List Container */}
+       <div className="card-hover overflow-hidden">
         <div className="overflow-x-auto">
-          {/* Table Header (Fixed) */}
-          <div className="sticky top-0 z-10 bg-gray-50 grid grid-cols-[1fr_1fr_1fr_1fr_1fr_2fr_1fr,80px] gap-4 px-6 py-3 border-b">
-            <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Name
-            </div>
-            <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Type
-            </div>
-            <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              ID/School
-            </div>
-            <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Campus
-            </div>
-            <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Program
-            </div>
-            <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Thesis Title
-            </div>
-            <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Date
-            </div>
+          {/* --- TABLE HEADER --- */}
+          <div className="sticky top-0 z-10 bg-gray-50 flex px-6 py-3 border-b gap-x-4">
+            <div className="w-40 text-left text-xs font-medium text-gray-500 uppercase">Name</div>
+            <div className="w-32 text-left text-xs font-medium text-gray-500 uppercase">Type</div>
+            <div className="w-36 text-left text-xs font-medium text-gray-500 uppercase">ID/School</div>
+            <div className="w-32 text-left text-xs font-medium text-gray-500 uppercase">Campus</div>
+            <div className="w-36 text-left text-xs font-medium text-gray-500 uppercase">Program</div>
+            <div className="w-36 text-left text-xs font-medium text-gray-500 uppercase">Thesis Title</div>
+            <div className="w-36 text-left text-xs font-medium text-gray-500 uppercase">Time Created</div>
+            <div className="w-24 text-left text-xs font-medium text-gray-500 uppercase">Date</div>
             {userRole === 'Admin' && (
-              <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Actions
-              </div>
+              <div className="w-20 text-left text-xs font-medium text-gray-500 uppercase">Actions</div>
             )}
           </div>
 
-          {/* Animated Scrollable List */}
+          {/* --- TABLE BODY --- */}
           {filteredAndSortedRecords.length === 0 ? (
             <div className="px-6 py-8 text-center text-gray-500">
               {records.length === 0 ? (
@@ -523,60 +623,74 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
           ) : (
             <div className="overflow-y-auto max-h-[500px]">
               <AnimatePresence>
-                {filteredAndSortedRecords.map((record) => (
+                {filteredAndSortedRecords.map(record => (
                   <motion.div
                     key={record.id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -20 }}
-                    transition={{ duration: 0.3 }}
-                    className="grid grid-cols-[1fr_1fr_1fr_1fr_1fr_2fr_1fr,80px] gap-4 px-6 py-4 border-b hover:bg-gray-50"
+                    className="flex px-6 py-4 border-b hover:bg-gray-50 gap-x-4 items-center"
                   >
-                    <div className="text-sm font-medium text-gray-900 truncate">
+                    <div className="w-40 text-sm font-medium text-gray-900 truncate">
                       {record.full_name}
                     </div>
-                    <div>
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        record.user_type === 'LPU Student' 
-                          ? 'bg-red-100 text-red-800' 
-                          : 'bg-blue-100 text-blue-800'
-                      }`}>
+                    <div className="w-32">
+                      <span
+                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          record.user_type === 'LPU Student'
+                            ? 'bg-red-100 text-red-800'
+                            : 'bg-blue-100 text-blue-800'
+                        }`}
+                      >
                         {record.user_type}
                       </span>
                     </div>
-                    <div className="text-sm text-gray-900 truncate">
+                    <div className="w-36 text-sm text-gray-900 truncate">
                       {record.student_number || record.school || '-'}
                     </div>
-                    <div className="text-sm text-gray-900 truncate">
+                    <div className="w-32 text-sm text-gray-900 truncate">
                       {record.campus}
                     </div>
-                    <div className="text-sm text-gray-900 truncate">
+                    <div className="w-36 text-sm text-gray-900 truncate">
                       {record.program || '-'}
                     </div>
-                    <div className="text-sm text-gray-900 truncate" title={record.thesis_title}>
+                    <div
+                      className="w-36 text-sm text-gray-900 truncate"
+                      title={record.thesis_title}
+                    >
                       {record.thesis_title}
                     </div>
-                    <div className="text-sm text-gray-900">
+                    <div className="w-28 text-sm text-gray-900">
+                      {new Date(record.created_at).toLocaleTimeString('en-US', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: true,
+                      })}
+                    </div>
+                    <div className="w-24 text-sm text-gray-900">
                       {new Date(record.submission_date).toLocaleDateString()}
                     </div>
                     {userRole === 'Admin' && (
-                      <div className="flex space-x-2">
-                        <button 
+                      <div className="w-20 flex space-x-2">
+                        <button
                           className="text-blue-600 hover:text-blue-900"
+                          onClick={() => handleViewClick(record)}
                           title="View details"
                         >
                           <Eye size={16} />
                         </button>
-                        <button 
+                        <button
                           className="text-green-600 hover:text-green-900"
+                          onClick={() => handleEdit(record)}
                           title="Edit record"
                         >
                           <Edit size={16} />
                         </button>
-                        <button 
+                        <button
                           className="text-red-600 hover:text-red-900"
-                          onClick={() => handleDelete(record.id)}
-                          title="Delete record"
+                          onClick={() => handleDeleteClick(record)}
+                          title="Delete record permanently"
+                          disabled={isDeleting && deletingRecord?.id === record.id}
                         >
                           <Trash2 size={16} />
                         </button>
@@ -601,6 +715,30 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
           </div>
         </div>
       )}
+
+      {/* Edit User Record Modal */}
+      <EditUserRecordModal
+        isOpen={isEditModalOpen}
+        onClose={handleEditModalClose}
+        record={editingRecord}
+        onSave={handleEditSave}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <DeleteRecordConfirmDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={handleDeleteDialogClose}
+        onConfirm={handleDeleteConfirm}
+        record={deletingRecord}
+        isDeleting={isDeleting}
+      />
+
+      {/* View User Record Modal */}
+      <ViewUserRecordModal
+        isOpen={isViewModalOpen}
+        onClose={handleViewModalClose}
+        record={viewingRecord}
+      />
     </div>
   );
 };

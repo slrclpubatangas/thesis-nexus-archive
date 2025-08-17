@@ -33,13 +33,15 @@ interface ExportButtonProps {
   selectedYear: string;
   dateRange: { start: string; end: string };
   disabled?: boolean;
+  onRefresh?: () => void;
 }
 
 const ExportButton: React.FC<ExportButtonProps> = ({ 
   stats, 
   selectedYear, 
   dateRange, 
-  disabled = false 
+  disabled = false, 
+  onRefresh
 }) => {
   const [isExporting, setIsExporting] = useState(false);
   const { toast } = useToast();
@@ -63,6 +65,8 @@ const ExportButton: React.FC<ExportButtonProps> = ({
         title: "Export Successful",
         description: `Statistics exported to ${result.fileName}`,
       });
+      //refresh statistics immediately
+      onRefresh?.();
     } catch (error) {
       console.error('Export error:', error);
       toast({
@@ -94,3 +98,5 @@ const ExportButton: React.FC<ExportButtonProps> = ({
 };
 
 export default ExportButton;
+
+
