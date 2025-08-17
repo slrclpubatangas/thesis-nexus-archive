@@ -1,7 +1,7 @@
 // AuthContext.tsx
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '../integrations/supabase/client';
+import { supabase, ensureValidSession } from '../integrations/supabase/client';
 import { updateLastLogin, checkUserStatus } from '../lib/auth-utils';
 import { toast } from '../hooks/use-toast';
 
@@ -105,6 +105,23 @@ const { data: { subscription } } = supabase.auth.onAuthStateChange(
     const interval = setInterval(async () => {
       try {
         console.log('⏱️ Periodic check for:', user.email);
+        
+        // First check if session is valid and refresh token if needed
+        const sessionValid = await ensureValidSession();
+        if (!sessionValid) {
+          console.log('🚪 Session invalid – forcing logout');
+          await supabase.auth.signOut();
+          setSession(null);
+          setUser(null);
+          toast({
+            title: 'Session Expired',
+            description: 'Your session has expired. Please login again.',
+            variant: 'destructive',
+          });
+          return;
+        }
+        
+        // Then check user status
         const isActive = await checkUserStatus(user.id);
         if (!isActive) {
           console.log('🚪 User inactive – forcing logout');
@@ -125,13 +142,55 @@ const { data: { subscription } } = supabase.auth.onAuthStateChange(
 
     return () => clearInterval(interval);
   }, [user?.id]);
+  
+  /* ---------- 4. PAGE VISIBILITY CHANGE HANDLER ---------- */
+  useEffect(() => {
+    if (!user?.id) return;
 
-  /* ---------- 4. LOADING STATE CLEANUP ---------- */
+    const handleVisibilityChange = async () => {
+      // When page becomes visible again, validate session
+      if (!document.hidden) {
+        console.log('📱 Page became visible, validating session...');
+        try {
+          const sessionValid = await ensureValidSession();
+          if (!sessionValid) {
+            console.log('🚪 Session invalid on visibility change – forcing logout');
+            await supabase.auth.signOut();
+            setSession(null);
+            setUser(null);
+            toast({
+              title: 'Session Expired',
+              description: 'Your session has expired. Please login again.',
+              variant: 'destructive',
+            });
+          }
+        } catch (error) {
+          console.error('❌ Error validating session on visibility change:', error);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Also handle window focus events
+    const handleFocus = () => {
+      handleVisibilityChange();
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [user?.id]);
+
+  /* ---------- 5. LOADING STATE CLEANUP ---------- */
   useEffect(() => {
     if (initialized) setLoading(false);
   }, [initialized]);
 
-  /* ---------- 5. AUTH METHODS ---------- */
+  /* ---------- 6. AUTH METHODS ---------- */
  /* ---------- 5. AUTH METHODS ---------- */
 const signIn = async (email: string, password: string) => {
   try {

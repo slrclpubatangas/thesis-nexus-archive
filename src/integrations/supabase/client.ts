@@ -8,4 +8,75 @@ const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+// Enhanced Supabase client with better session handling
+export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  auth: {
+    // Enable automatic token refresh
+    autoRefreshToken: true,
+    // Persist session in localStorage
+    persistSession: true,
+    // Detect session in URL (for email confirmation links, etc.)
+    detectSessionInUrl: true,
+    // Set token refresh threshold to 10 seconds before expiry
+    refreshThreshold: 10,
+  },
+  // Enable realtime for better session synchronization
+  realtime: {
+    params: {
+      eventsPerSecond: 10,
+    },
+  },
+});
+
+// Enhanced error handler for better session management
+supabase.auth.onAuthStateChange((event, session) => {
+  console.log('🔐 Auth state changed:', event, session?.user?.email);
+  
+  if (event === 'TOKEN_REFRESHED') {
+    console.log('✅ Token refreshed successfully');
+  } else if (event === 'SIGNED_OUT') {
+    console.log('👋 User signed out');
+  } else if (event === 'SIGNED_IN') {
+    console.log('👋 User signed in:', session?.user?.email);
+  }
+});
+
+// Helper function to check if session is valid and refresh if needed
+export const ensureValidSession = async () => {
+  try {
+    const { data: { session }, error } = await supabase.auth.getSession();
+    
+    if (error) {
+      console.error('❌ Session check failed:', error);
+      return false;
+    }
+    
+    if (!session) {
+      console.log('🚫 No active session');
+      return false;
+    }
+    
+    // Check if token is about to expire (within 5 minutes)
+    const tokenExp = session.expires_at;
+    const now = Math.floor(Date.now() / 1000);
+    const timeUntilExp = (tokenExp || 0) - now;
+    
+    if (timeUntilExp < 300) { // Less than 5 minutes
+      console.log('🔄 Token expiring soon, refreshing...');
+      const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession();
+      
+      if (refreshError) {
+        console.error('❌ Token refresh failed:', refreshError);
+        return false;
+      }
+      
+      console.log('✅ Token refreshed successfully');
+      return !!refreshedSession;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('❌ Session validation error:', error);
+    return false;
+  }
+};

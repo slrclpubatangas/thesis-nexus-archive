@@ -26,12 +26,16 @@ interface ThesisDataTableProps {
   theses: ThesisRecord[];
   isLoading: boolean;
   searchTerm: string;
+  onEdit: (thesis: ThesisRecord) => void;
+  onDelete: (thesis: ThesisRecord) => void;
 }
 
 const ThesisDataTable: React.FC<ThesisDataTableProps> = ({
   theses,
   isLoading,
-  searchTerm
+  searchTerm,
+  onEdit,
+  onDelete
 }) => {
   if (isLoading) {
     return (
@@ -87,10 +91,18 @@ const ThesisDataTable: React.FC<ThesisDataTableProps> = ({
                   </TableCell>
                   <TableCell>
                     <div className="flex space-x-2">
-                      <button className="text-blue-600 hover:text-blue-900">
+                      <button 
+                        onClick={() => onEdit(thesis)}
+                        className="text-blue-600 hover:text-blue-900"
+                        title="Edit thesis"
+                      >
                         <Edit size={16} />
                       </button>
-                      <button className="text-red-600 hover:text-red-900">
+                      <button 
+                        onClick={() => onDelete(thesis)}
+                        className="text-red-600 hover:text-red-900" 
+                        title="Delete thesis"
+                      >
                         <Trash2 size={16} />
                       </button>
                     </div>

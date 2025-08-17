@@ -21,6 +21,37 @@ const CSVUploadSection: React.FC<CSVUploadSectionProps> = ({
     return `THS-${timestamp}-${random}`.toUpperCase();
   };
 
+  // Download CSV template
+  const downloadTemplate = () => {
+    const headers = ['Title', 'Author', 'Department', 'Year'];
+    const sampleData = [
+      ['Advanced Machine Learning Algorithms for Healthcare', 'John Doe', 'Computer Science', '2024'],
+      ['Sustainable Architecture in Urban Development', 'Jane Smith', 'Architecture', '2023'],
+      ['Quantum Computing Applications in Cryptography', 'Alice Johnson', 'Physics', '2024'],
+      ['Impact of Social Media on Mental Health', 'Bob Williams', 'Psychology', '2023'],
+      ['Renewable Energy Solutions for Rural Communities', 'Sarah Davis', 'Engineering', '2024']
+    ];
+    
+    // Create CSV content
+    const csvContent = [
+      headers.join(','),
+      ...sampleData.map(row => row.join(','))
+    ].join('\n');
+    
+    // Create blob and download link
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'thesis_data_template.csv');
+    link.style.visibility = 'hidden';
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   // Parse CSV content
   const parseCSV = (csvText: string) => {
     const lines = csvText.trim().split('\n');
@@ -141,7 +172,10 @@ const CSVUploadSection: React.FC<CSVUploadSectionProps> = ({
           >
             {isUploading ? 'Processing...' : 'Process Upload'}
           </button>
-          <button className="btn-secondary flex items-center space-x-2">
+<button 
+            onClick={downloadTemplate}
+            className="btn-secondary flex items-center space-x-2"
+          >
             <Download size={16} />
             <span>Download Template</span>
           </button>
