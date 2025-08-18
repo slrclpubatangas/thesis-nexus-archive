@@ -64,6 +64,18 @@ const SystemUsers = () => {
 
   // Fetch users from database
   const fetchUsers = async () => {
+    const timeoutId = setTimeout(() => {
+      if (loading) {
+        console.error('Users fetch timeout - forcing completion');
+        setLoading(false);
+        toast({
+          title: "Loading Timeout",
+          description: "Data loading took too long. Please refresh to try again.",
+          variant: "destructive",
+        });
+      }
+    }, 30000); // 30 second timeout
+
     try {
       const { data, error } = await supabase
         .from('system_users')
@@ -90,6 +102,7 @@ const SystemUsers = () => {
         variant: "destructive",
       });
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   };
@@ -238,38 +251,82 @@ const SystemUsers = () => {
     }
   };
 
-  const handleDeleteUser = async (userId: string) => {
-    if (!confirm('Are you sure you want to delete this user?')) {
-      return;
-    }
+  // ✅  NEW 1-liner that uses the RPC helper
+const handleDeleteUser = async (userId: string) => {
+  if (!confirm('Delete this user? This cannot be undone.')) return;
 
+  const { data, error } = await supabase.rpc('admin_delete_user_complete', {
+    p_user_id: userId,
+  });
+
+  if (error || !data?.success) {
+    toast({
+      title: 'Error',
+      description: data?.error || error?.message || 'Delete failed',
+      variant: 'destructive',
+    });
+    return;
+  }
+
+  toast({
+    title: 'Success',
+    description: data.message || 'User completely deleted',
+  });
+
+  fetchUsers();  // refresh the table
+};
+
+  // Fallback method using RPC function
+  const handleDeleteUserFallback = async (userId: string) => {
     try {
-      const { error } = await supabase
-        .from('system_users')
-        .delete()
-        .eq('id', userId);
+      console.log('Using RPC fallback for user:', userId);
+      
+      // Try using the RPC function
+      const { data: rpcResult, error: rpcError } = await supabase
+        .rpc('admin_delete_user', { p_user_id: userId });
 
-      if (error) {
-        console.error('Error deleting user:', error);
+      if (rpcError) {
+        console.error('RPC function failed:', rpcError);
         toast({
           title: "Error",
-          description: "Failed to delete user",
+          description: "Failed to delete user: " + rpcError.message,
           variant: "destructive",
         });
         return;
       }
 
-      toast({
-        title: "Success",
-        description: "User deleted successfully",
-      });
+      if (rpcResult && !rpcResult.success) {
+        toast({
+          title: "Error",
+          description: rpcResult.error || "Failed to delete user",
+          variant: "destructive",
+        });
+        return;
+      }
 
+      console.log('RPC deletion successful:', rpcResult);
+      
+      // Show appropriate message based on RPC result
+      if (rpcResult && rpcResult.auth_user_id) {
+        toast({
+          title: "Partial Success",
+          description: `User removed from system. Note: To completely prevent login, manually delete user ${rpcResult.deleted_user_email} from Authentication → Users in Supabase Dashboard.`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Success",
+          description: "User has been deleted from the system",
+        });
+      }
+
+      // Refresh the users list
       fetchUsers();
     } catch (error) {
-      console.error('Error deleting user:', error);
+      console.error('RPC fallback failed:', error);
       toast({
         title: "Error",
-        description: "Failed to delete user",
+        description: "Failed to delete user completely",
         variant: "destructive",
       });
     }

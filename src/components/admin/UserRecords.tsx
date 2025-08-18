@@ -50,6 +50,15 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
     console.log('UserRecords component mounted');
     fetchRecords();
     
+    // Debounced refresh function to prevent excessive API calls
+    let refreshTimeout: NodeJS.Timeout | null = null;
+    const debouncedRefresh = () => {
+      if (refreshTimeout) clearTimeout(refreshTimeout);
+      refreshTimeout = setTimeout(() => {
+        fetchRecords();
+      }, 500); // 500ms debounce
+    };
+    
     const channel = supabase
       .channel('thesis-submissions-changes')
       .on(
@@ -61,18 +70,37 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
         },
         (payload) => {
           console.log('Real-time update received:', payload);
-          fetchRecords();
+          debouncedRefresh();
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Real-time subscription active');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Real-time subscription error');
+        }
+      });
 
     return () => {
       console.log('Cleaning up real-time subscription');
+      if (refreshTimeout) clearTimeout(refreshTimeout);
       supabase.removeChannel(channel);
     };
   }, []);
 
   const fetchRecords = async () => {
+    const timeoutId = setTimeout(() => {
+      if (loading) {
+        console.error('Records fetch timeout - forcing completion');
+        setLoading(false);
+        toast({
+          title: "Loading Timeout",
+          description: "Data loading took too long. Displaying available data.",
+          variant: "destructive",
+        });
+      }
+    }, 30000); // 30 second timeout
+
     try {
       setLoading(true);
       console.log('Fetching records from Supabase...');
@@ -103,6 +131,7 @@ const UserRecords: React.FC<UserRecordsProps> = ({ userRole }) => {
         variant: "destructive",
       });
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   };

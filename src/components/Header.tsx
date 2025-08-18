@@ -26,9 +26,9 @@ const Header: React.FC<HeaderProps> = ({ onAdminLoginClick, showAdminLogin }) =>
     return () => document.removeEventListener('mousedown', handleClickOut);
   }, [menuOpen]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setShowLogout(false);
-    signOut(); // redirects to '/'
+    await signOut(); // redirects to '/'
   };
 
   /* helper: first letter upper-case */

@@ -11,7 +11,7 @@ import NotFound from "./pages/NotFound";
 import ClickSpark from "./components/ClickSpark";
 import { supabase } from "@/integrations/supabase/client";
 
-// Enhanced QueryClient configuration with proper error handling and retry logic
+// Optimized QueryClient configuration to prevent continuous loading
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -21,19 +21,23 @@ const queryClient = new QueryClient({
         if (error?.status === 401 || error?.status === 403) {
           return false;
         }
-        // Retry up to 3 times for other errors
-        return failureCount < 3;
+        // Retry up to 2 times for other errors (reduced from 3)
+        return failureCount < 2;
       },
-      // Keep data fresh for 5 minutes
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      // Cache data for 10 minutes
-      gcTime: 10 * 60 * 1000, // 10 minutes (formerly cacheTime)
-      // Refetch data when window regains focus
-      refetchOnWindowFocus: true,
+      // Keep data fresh for 10 minutes (increased from 5)
+      staleTime: 10 * 60 * 1000, // 10 minutes
+      // Cache data for 30 minutes (increased from 10)
+      gcTime: 30 * 60 * 1000, // 30 minutes
+      // Only refetch on window focus if data is stale
+      refetchOnWindowFocus: 'always',
       // Refetch data when reconnecting to internet
       refetchOnReconnect: true,
-      // Retry on network error
-      retryOnMount: true,
+      // Don't retry on mount to prevent initial loading issues
+      retryOnMount: false,
+      // Add retry delay to prevent rapid successive requests
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+      // Network mode: only fetch when online
+      networkMode: 'online',
     },
     mutations: {
       // Retry mutations up to 2 times
@@ -44,6 +48,8 @@ const queryClient = new QueryClient({
         }
         return failureCount < 2;
       },
+      // Add retry delay for mutations
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
     },
   },
 });

@@ -15,7 +15,11 @@ interface UserRole {
 }
 
 const AdminDashboard = () => {
-  const [activeTab, setActiveTab] = useState<TabType>('statistics');
+  const [activeTab, setActiveTab] = useState<TabType>(() => {
+    // Restore active tab from sessionStorage after refresh
+    const savedTab = sessionStorage.getItem('adminActiveTab');
+    return (savedTab as TabType) || 'statistics';
+  });
   const [userRole, setUserRole] = useState<'Admin' | 'Reader' | null>(null);
   const [loading, setLoading] = useState(true);
   const [roleLoading, setRoleLoading] = useState(true);
@@ -106,6 +110,24 @@ const AdminDashboard = () => {
     { id: 'users' as TabType, label: 'System Users', icon: Settings, requiredRole: 'Admin' }, // Admin only
   ];
 
+  // Save active tab to sessionStorage whenever it changes
+  useEffect(() => {
+    sessionStorage.setItem('adminActiveTab', activeTab);
+  }, [activeTab]);
+
+  // Check if we just refreshed and show toast
+  useEffect(() => {
+    const justRefreshed = sessionStorage.getItem('adminJustRefreshed');
+    if (justRefreshed === 'true') {
+      const tabLabel = tabs.find(t => t.id === activeTab)?.label || 'Tab';
+      toast({
+        title: "Refreshed",
+        description: `${tabLabel} data has been refreshed`,
+      });
+      sessionStorage.removeItem('adminJustRefreshed');
+    }
+  }, []);
+
   // Function to handle tab click with refresh
   const handleTabClick = (tabId: TabType) => {
     // If clicking on the already active tab, refresh the page
@@ -115,14 +137,18 @@ const AdminDashboard = () => {
       
       // Show toast notification
       toast({
-        title: "Refreshing...",
-        description: `Refreshing ${tabs.find(t => t.id === tabId)?.label || 'tab'} data`,
+        title: "Refreshing",
+        description: `Refreshing ${tabs.find(t => t.id === tabId)?.label || 'tab'} data...`,
       });
       
-      // Small delay to show the animation before refresh
+      // Save state before refresh
+      sessionStorage.setItem('adminActiveTab', tabId);
+      sessionStorage.setItem('adminJustRefreshed', 'true');
+      
+      // Use a smooth page refresh
       setTimeout(() => {
         window.location.reload();
-      }, 300);
+      }, 200);
     } else {
       // Otherwise, just switch to the new tab
       setActiveTab(tabId);
@@ -239,15 +265,15 @@ const AdminDashboard = () => {
                   <Icon size={18} className={isRefreshing && activeTab === tab.id ? 'animate-pulse' : ''} />
                   <span>{tab.label}</span>
                   {activeTab === tab.id && (
-                    <div className="flex items-center space-x-1">
+                    <div className="flex items-center space-x-1 ml-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                       <RefreshCw 
                         size={12} 
                         className={`text-gray-400 group-hover:text-red-500 transition-all duration-200 ${
                           isRefreshing ? 'animate-spin' : ''
                         }`} 
                       />
-                      <span className="text-xs text-gray-400 group-hover:text-gray-600">
-                        {isRefreshing ? 'Refreshing...' : 'Refresh'}
+                      <span className="text-xs text-gray-400 group-hover:text-gray-600 hidden sm:inline">
+                        Refresh
                       </span>
                     </div>
                   )}

@@ -23,34 +23,35 @@ The only requirement is having Node.js & npm installed - [install with nvm](http
 Follow these steps:
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
+# Step : Clone the repository using the project's Git URL.
 git clone <YOUR_GIT_URL>
 
-# Step 2: Navigate to the project directory.
+# Step : Navigate to the project directory.
 cd <YOUR_PROJECT_NAME>
 
-# Step 3: Install the necessary dependencies.
-npm i
+# Step : Install the necessary dependencies.
+npm install
+# Step : Start the development server with auto-reloading and an instant preview.
+npm run dev
 
-# Step 4: Install the CLI to your project folder
+# Steps to Install the supabase CLI to your project folder
 npm install supabase --save-dev
-
-# Step 5: Run the CLI using npx
+# Step : Run the supabase CLI using npx
 npx supabase login
+# Step: Run this npx to link your project
+npx supabase link --project-ref zummzziydfpvwuxxuyyu
 
-# Step 
+# Step to install sendgrid of email verification
 npm install @sendgrid/mail
-
 # Step : Setting your new sendgrid api key
 npx supabase secrets set SENDGRID_API_KEY=SG....
-
 # Step : Set Environment Variables
 npx supabase secrets set ENVIRONMENT=production
 
-# Step : Always re run when commiting
+# Steps to deploy edge functions on supabase dashboard
+npx supabase functions deploy delete-user
 npx supabase functions deploy send-verification-email
-# Step : Start the development server with auto-reloading and an instant preview.
-npm run dev
+
 ```
 
 **Edit a file directly in GitHub**

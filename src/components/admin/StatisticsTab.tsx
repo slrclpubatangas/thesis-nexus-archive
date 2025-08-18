@@ -3,6 +3,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Users, FileText, TrendingUp, Calendar, School, BookOpen, X, Filter, Star, MessageSquare } from 'lucide-react';
 import { supabase } from '../../integrations/supabase/client';
 import ExportButton from './ExportButton';
+import { useToast } from '@/hooks/use-toast';
 
 interface StatisticsTabProps {
   userRole?: 'Admin' | 'Reader' | null;
@@ -51,12 +52,25 @@ const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
   const [loading, setLoading] = useState(true);
   const [selectedYear, setSelectedYear] = useState<string>('all');
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
+  const { toast } = useToast();
 
   useEffect(() => {
     fetchStatistics();
   }, [selectedYear, dateRange]);
 
   const fetchStatistics = async () => {
+    const timeoutId = setTimeout(() => {
+      if (loading) {
+        console.error('Statistics fetch timeout - forcing completion');
+        setLoading(false);
+        toast({
+          title: "Loading Timeout",
+          description: "Data loading took too long. Please refresh to try again.",
+          variant: "destructive",
+        });
+      }
+    }, 30000); // 30 second timeout
+
     try {
       setLoading(true);
 
@@ -188,7 +202,13 @@ const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
       });
     } catch (error) {
       console.error('Error fetching statistics:', error);
+      toast({
+        title: "Error Loading Statistics",
+        description: "Failed to load statistics. The data will be displayed with available information.",
+        variant: "destructive",
+      });
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   };

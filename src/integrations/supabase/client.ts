@@ -42,41 +42,105 @@ supabase.auth.onAuthStateChange((event, session) => {
 });
 
 // Helper function to check if session is valid and refresh if needed
-export const ensureValidSession = async () => {
+export const ensureValidSession = async (attempt = 1): Promise<boolean> => {
   try {
     const { data: { session }, error } = await supabase.auth.getSession();
     
-    if (error) {
-      console.error('❌ Session check failed:', error);
+    // Handle errors and empty sessions
+    if (error || !session?.access_token) {
+      console.error('❌ Session check failed:', error || 'No access token');
       return false;
     }
     
-    if (!session) {
-      console.log('🚫 No active session');
-      return false;
-    }
-    
-    // Check if token is about to expire (within 5 minutes)
+    // Check token expiration with buffer
     const tokenExp = session.expires_at;
     const now = Math.floor(Date.now() / 1000);
     const timeUntilExp = (tokenExp || 0) - now;
     
-    if (timeUntilExp < 300) { // Less than 5 minutes
-      console.log('🔄 Token expiring soon, refreshing...');
-      const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession();
+    // Refresh token if it's about to expire (with 10 min buffer)
+    if (timeUntilExp < 600) {
+      console.log('🔄 Token expiring soon (expires in', timeUntilExp, 'seconds), refreshing...');
       
-      if (refreshError) {
-        console.error('❌ Token refresh failed:', refreshError);
+      // Attempt refresh with retry logic
+      try {
+        const { data: { session: refreshedSession }, error: refreshError } =
+          await supabase.auth.refreshSession();
+        
+        if (refreshError) {
+          console.error('❌ Token refresh failed:', refreshError);
+          if (attempt < 3) {
+            console.log('Retrying refresh in 2 seconds...');
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            return ensureValidSession(attempt + 1);
+          }
+          return false;
+        }
+        
+        console.log('✅ Token refreshed successfully');
+        return !!refreshedSession;
+      } catch (refreshError) {
+        console.error('❌ Token refresh error:', refreshError);
         return false;
       }
-      
-      console.log('✅ Token refreshed successfully');
-      return !!refreshedSession;
+    }
+    
+    // Verify active connection
+    if (!supabase.realtime.isConnected()) {
+      console.log('⚠️ Realtime connection lost, reconnecting...');
+      supabase.realtime.connect();
     }
     
     return true;
   } catch (error) {
     console.error('❌ Session validation error:', error);
+    if (attempt < 2) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return ensureValidSession(attempt + 1);
+    }
     return false;
   }
+};
+
+// Track connection state
+let isConnected = true;
+let connectionChannel: ReturnType<typeof supabase.channel> | null = null;
+
+// Monitor connection status using system channel
+const setupConnectionMonitoring = () => {
+  if (connectionChannel) return;
+
+  connectionChannel = supabase.channel('realtime:system')
+    .on('system', { event: 'CONNECTED' }, () => {
+      isConnected = true;
+      console.log('🔌 Realtime connection established');
+    })
+    .on('system', { event: 'DISCONNECTED' }, () => {
+      isConnected = false;
+      console.log('⚠️ Realtime connection lost');
+    })
+    .on('system', { event: 'ERROR' }, (payload) => {
+      console.error('❌ Realtime error:', payload);
+    })
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        console.log('🔌 Started monitoring connection status');
+      }
+    });
+
+  return () => {
+    connectionChannel?.unsubscribe();
+    connectionChannel = null;
+  };
+};
+
+// Initialize connection monitoring
+setupConnectionMonitoring();
+
+// Helper to check/get connection status
+export const checkConnection = () => {
+  if (!isConnected && supabase.realtime.isConnected()) {
+    setupConnectionMonitoring();
+    supabase.realtime.connect();
+  }
+  return isConnected;
 };

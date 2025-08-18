@@ -555,3 +555,278 @@ SELECT tablename, policyname, permissive, roles, cmd
 FROM pg_policies 
 WHERE schemaname = 'public' AND tablename = 'thesis_data'
 ORDER BY policyname;
+
+-- =============================================================================
+-- MIGRATION: Fix System User Deletion
+-- =============================================================================
+-- This migration fixes the delete user functionality to properly handle:
+-- 1. Deletion from both system_users and auth.users tables
+-- 2. Proper foreign key constraints with CASCADE
+-- 3. Admin-only deletion with proper RLS policies
+-- =============================================================================
+
+-- First, let's add the missing foreign key constraint to auth.users if it doesn't exist
+-- This ensures referential integrity between system_users and auth.users
+DO $$
+BEGIN
+    -- Check if the foreign key constraint already exists
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints 
+        WHERE constraint_name = 'system_users_user_id_fkey' 
+        AND table_name = 'system_users'
+    ) THEN
+        ALTER TABLE public.system_users 
+        ADD CONSTRAINT system_users_user_id_fkey 
+        FOREIGN KEY (user_id) 
+        REFERENCES auth.users(id) 
+        ON DELETE CASCADE;
+    END IF;
+END $$;
+
+-- =============================================================================
+-- Create a function to properly delete a system user and their auth account
+-- =============================================================================
+CREATE OR REPLACE FUNCTION public.delete_system_user(target_user_id UUID)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_system_user_id UUID;
+    v_auth_user_id UUID;
+    v_current_user_role TEXT;
+BEGIN
+    -- Check if the current user is an admin
+    SELECT role INTO v_current_user_role
+    FROM system_users
+    WHERE user_id = auth.uid()
+    AND status = 'Active';
+    
+    IF v_current_user_role != 'Admin' THEN
+        RAISE EXCEPTION 'Only administrators can delete users';
+    END IF;
+    
+    -- Get the auth user_id from system_users
+    SELECT user_id, id INTO v_auth_user_id, v_system_user_id
+    FROM system_users
+    WHERE id = target_user_id;
+    
+    IF v_auth_user_id IS NULL THEN
+        RAISE EXCEPTION 'User not found';
+    END IF;
+    
+    -- Prevent self-deletion
+    IF v_auth_user_id = auth.uid() THEN
+        RAISE EXCEPTION 'You cannot delete your own account';
+    END IF;
+    
+    -- Delete from system_users (this will cascade to other related tables if needed)
+    DELETE FROM system_users WHERE id = target_user_id;
+    
+    -- Delete from auth.users (this requires admin privileges)
+    -- Note: This uses Supabase's auth.users table directly
+    DELETE FROM auth.users WHERE id = v_auth_user_id;
+    
+    RETURN jsonb_build_object(
+        'success', true,
+        'message', 'User deleted successfully',
+        'deleted_system_user_id', v_system_user_id,
+        'deleted_auth_user_id', v_auth_user_id
+    );
+EXCEPTION
+    WHEN OTHERS THEN
+        RETURN jsonb_build_object(
+            'success', false,
+            'message', SQLERRM
+        );
+END;
+$$;
+
+-- Grant execute permission to authenticated users (RLS will handle the actual permission check)
+GRANT EXECUTE ON FUNCTION public.delete_system_user(UUID) TO authenticated;
+
+-- =============================================================================
+-- Update RLS Policies for system_users table
+-- =============================================================================
+
+-- Drop existing delete policies to avoid conflicts
+DROP POLICY IF EXISTS "Admins can delete system users" ON public.system_users;
+DROP POLICY IF EXISTS "Admin can delete system_users" ON public.system_users;
+
+-- Create a comprehensive delete policy for admins
+CREATE POLICY "Admin users can delete other system users"
+ON public.system_users
+FOR DELETE
+USING (
+    EXISTS (
+        SELECT 1 
+        FROM public.system_users su
+        WHERE su.user_id = auth.uid()
+        AND su.role = 'Admin'
+        AND su.status = 'Active'
+    )
+    -- Prevent self-deletion
+    AND user_id != auth.uid()
+);
+
+-- =============================================================================
+-- Create a helper function to check if current user is an admin
+-- (Update the existing one if needed)
+-- =============================================================================
+CREATE OR REPLACE FUNCTION public.check_admin_status()
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE SECURITY DEFINER
+AS $$
+    SELECT EXISTS (
+        SELECT 1 
+        FROM public.system_users 
+        WHERE user_id = auth.uid() 
+        AND role = 'Admin'
+        AND status = 'Active'
+    );
+$$;
+
+-- =============================================================================
+-- Alternative: Create an RPC function that can be called from the client
+-- This is a safer approach that doesn't require direct auth.users access
+-- =============================================================================
+CREATE OR REPLACE FUNCTION public.admin_delete_user(p_user_id UUID)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_is_admin BOOLEAN;
+    v_target_auth_id UUID;
+    v_result jsonb;
+BEGIN
+    -- Check if current user is admin
+    v_is_admin := check_admin_status();
+    
+    IF NOT v_is_admin THEN
+        RETURN jsonb_build_object(
+            'success', false,
+            'error', 'Unauthorized: Only admins can delete users'
+        );
+    END IF;
+    
+    -- Get the auth user id
+    SELECT user_id INTO v_target_auth_id
+    FROM system_users
+    WHERE id = p_user_id;
+    
+    IF v_target_auth_id IS NULL THEN
+        RETURN jsonb_build_object(
+            'success', false,
+            'error', 'User not found'
+        );
+    END IF;
+    
+    -- Prevent self-deletion
+    IF v_target_auth_id = auth.uid() THEN
+        RETURN jsonb_build_object(
+            'success', false,
+            'error', 'Cannot delete your own account'
+        );
+    END IF;
+    
+    -- Start transaction
+    BEGIN
+        -- Delete from system_users first
+        DELETE FROM system_users WHERE id = p_user_id;
+        
+        -- Use Supabase's admin API to delete the auth user
+        -- Note: This requires proper service_role key access
+        -- For client-side, we'll handle this differently
+        
+        RETURN jsonb_build_object(
+            'success', true,
+            'message', 'User deleted from system',
+            'auth_user_id', v_target_auth_id
+        );
+    EXCEPTION
+        WHEN OTHERS THEN
+            RETURN jsonb_build_object(
+                'success', false,
+                'error', SQLERRM
+            );
+    END;
+END;
+$$;
+
+-- Grant execute permission
+GRANT EXECUTE ON FUNCTION public.admin_delete_user(UUID) TO authenticated;
+
+-- =============================================================================
+-- Create indexes for better performance
+-- =============================================================================
+CREATE INDEX IF NOT EXISTS idx_system_users_user_id_role 
+ON public.system_users(user_id, role, status);
+
+-- =============================================================================
+-- Add comment for documentation
+-- =============================================================================
+COMMENT ON FUNCTION public.admin_delete_user IS 
+'Admin function to delete a system user. Returns the auth_user_id that needs to be deleted via Supabase Admin API';
+
+COMMENT ON FUNCTION public.delete_system_user IS 
+'Complete user deletion function that removes both system_user and auth.users records (requires elevated privileges)';
+
+-- Create once, then the UI will work
+CREATE OR REPLACE FUNCTION public.admin_delete_user_complete(p_user_id uuid)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_is_admin bool;
+    v_auth_id uuid;
+    v_name text;
+    v_email text;
+BEGIN
+    -- 1. Is caller an admin?
+    v_is_admin := EXISTS (
+        SELECT 1
+        FROM public.system_users
+        WHERE user_id = auth.uid()
+          AND role = 'Admin'
+          AND status = 'Active'
+    );
+    IF NOT v_is_admin THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Admin access required');
+    END IF;
+
+    -- 2. Get target user details
+    SELECT user_id, name, email
+    INTO v_auth_id, v_name, v_email
+    FROM public.system_users
+    WHERE id = p_user_id;
+
+    IF v_auth_id IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'User not found');
+    END IF;
+
+    -- 3. Prevent self-deletion
+    IF v_auth_id = auth.uid() THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Cannot delete yourself');
+    END IF;
+
+    -- 4. Delete from both tables
+    DELETE FROM public.system_users WHERE id = p_user_id;
+    DELETE FROM auth.users WHERE id = v_auth_id;
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'message', 'User completely deleted',
+        'deleted_user_name', v_name
+    );
+EXCEPTION
+    WHEN OTHERS THEN
+        RETURN jsonb_build_object('success', false, 'error', SQLERRM);
+END;
+$$;
+
+-- Allow authenticated users to call it
+GRANT EXECUTE ON FUNCTION public.admin_delete_user_complete(uuid) TO authenticated;
