@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BarChart3, Users, FileText, Settings, Download, Filter, RefreshCw } from 'lucide-react';
+import { BarChart3, Users, FileText, Settings, Download, Filter, RefreshCw, GraduationCap } from 'lucide-react';
 import { supabase } from '../../integrations/supabase/client';
 import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
@@ -7,8 +7,9 @@ import StatisticsTab from './StatisticsTab';
 import UserRecords from './UserRecords';
 import ThesisData from './ThesisData';
 import SystemUsers from './SystemUsers';
+import StudentData from './StudentData';
 
-type TabType = 'statistics' | 'records' | 'thesis' | 'users';
+type TabType = 'statistics' | 'records' | 'thesis' | 'students' | 'users';
 
 interface UserRole {
   role: 'Admin' | 'Reader';
@@ -107,6 +108,7 @@ const AdminDashboard = () => {
     { id: 'statistics' as TabType, label: 'Statistics', icon: BarChart3, requiredRole: null }, // Available to all
     { id: 'records' as TabType, label: 'User Records', icon: Users, requiredRole: null }, // Available to all
     { id: 'thesis' as TabType, label: 'Thesis Data', icon: FileText, requiredRole: 'Admin' }, // Admin only
+    { id: 'students' as TabType, label: 'Student Data', icon: GraduationCap, requiredRole: 'Admin' }, // Admin only
     { id: 'users' as TabType, label: 'System Users', icon: Settings, requiredRole: 'Admin' }, // Admin only
   ];
 
@@ -192,6 +194,8 @@ const AdminDashboard = () => {
         return <UserRecords userRole={userRole} />;
       case 'thesis':
         return <ThesisData />;
+      case 'students':
+        return <StudentData />;
       case 'users':
         return <SystemUsers />;
       default:

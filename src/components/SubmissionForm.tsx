@@ -18,6 +18,14 @@ const SubmissionForm = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [lastSubmissionId, setLastSubmissionId] = useState<string | null>(null);
+  const [studentValidation, setStudentValidation] = useState<{
+    isValidating: boolean;
+    isValid: boolean | null;
+    message: string;
+    nameValid: boolean | null;
+    nameMessage: string;
+    expectedName: string | null;
+  }>({ isValidating: false, isValid: null, message: '', nameValid: null, nameMessage: '', expectedName: null });
   const { toast } = useToast();
 
   const campusOptions = [
@@ -122,6 +130,161 @@ const SubmissionForm = () => {
       ...prev,
       [field]: value
     }));
+
+    // Validate student number and name in real-time for LPU students
+    if (field === 'studentNumber' && userType === 'lpu' && value.trim()) {
+      validateStudentNumber(value.trim(), formData.fullName.trim());
+    } else if (field === 'studentNumber') {
+      // Reset validation when field is cleared
+      setStudentValidation({ isValidating: false, isValid: null, message: '', nameValid: null, nameMessage: '', expectedName: null });
+    }
+
+    // Re-validate when name changes and student number exists
+    if (field === 'fullName' && userType === 'lpu' && formData.studentNumber.trim() && value.trim()) {
+      validateStudentNumber(formData.studentNumber.trim(), value.trim());
+    }
+  };
+
+  const validateStudentNumber = async (studentNumber: string, studentName: string = '') => {
+    if (!studentNumber.trim()) {
+      setStudentValidation({ isValidating: false, isValid: null, message: '', nameValid: null, nameMessage: '', expectedName: null });
+      return;
+    }
+
+    console.log('🔍 Starting validation for student number:', studentNumber, 'with name:', studentName);
+    setStudentValidation(prev => ({ ...prev, isValidating: true, message: 'Validating student information...' }));
+
+    try {
+      // Use the enhanced validation function that checks both number and name
+      if (studentName.trim()) {
+        console.log('📡 Calling validate_lpu_student_with_name...');
+        const { data, error } = await supabase.rpc('validate_lpu_student_with_name', { 
+          student_num: studentNumber,
+          student_name: studentName
+        });
+
+        console.log('📥 Enhanced validation response:', data, 'Error:', error);
+
+        if (error) {
+          console.error('❌ Enhanced validation error:', error);
+          // Fall back to basic validation
+          return validateBasicStudentNumber(studentNumber);
+        }
+
+        if (data && typeof data === 'object') {
+          if (data.valid) {
+            console.log('✅ Student validation successful with name match');
+            setStudentValidation({
+              isValidating: false,
+              isValid: true,
+              message: '✓ Student number and name verified',
+              nameValid: true,
+              nameMessage: '✓ Name matches student record',
+              expectedName: null
+            });
+          } else {
+            console.log('❌ Student validation failed:', data.error);
+            let message = '';
+            let nameMessage = '';
+            let isValid = false;
+            let nameValid = false;
+            
+            if (data.error === 'student_not_found') {
+              message = '⚠️ Student number not found in database. Please contact the administrator to register your student information.';
+              nameMessage = '';
+            } else if (data.error === 'name_mismatch') {
+              message = '✓ Student number found';
+              nameMessage = `❌ Name does not match. Please input the correct name.`;
+              isValid = true; // Student number is valid
+              nameValid = false;
+            }
+            
+            setStudentValidation({
+              isValidating: false,
+              isValid: isValid,
+              message: message,
+              nameValid: nameValid,
+              nameMessage: nameMessage,
+              expectedName: data.expected_name || null
+            });
+          }
+        } else {
+          // Fallback if data format is unexpected
+          return validateBasicStudentNumber(studentNumber);
+        }
+      } else {
+        // Only validate student number if no name provided yet
+        return validateBasicStudentNumber(studentNumber);
+      }
+    } catch (error) {
+      console.error('❌ Student validation error:', error);
+      return validateBasicStudentNumber(studentNumber);
+    }
+  };
+
+  const validateBasicStudentNumber = async (studentNumber: string) => {
+    console.log('🔄 Using basic validation for student number:', studentNumber);
+    
+    try {
+      const { data, error } = await supabase.rpc('validate_lpu_student', { 
+        student_num: studentNumber 
+      });
+
+      if (error) {
+        console.error('❌ Basic validation RPC error:', error);
+        // Try direct query as fallback
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('students')
+          .select('student_no, full_name')
+          .eq('student_no', studentNumber)
+          .single();
+        
+        const isValid = !!fallbackData && !fallbackError;
+        setStudentValidation({
+          isValidating: false,
+          isValid: isValid,
+          message: isValid 
+            ? '✓ Student number verified. Enter your full name to complete validation.' 
+            : '⚠️ Student number not found in database. Please contact the administrator to register your student information.',
+          nameValid: null,
+          nameMessage: isValid ? 'Please enter your full name to verify identity.' : '',
+          expectedName: fallbackData?.full_name || null
+        });
+        return;
+      }
+      
+      if (data === true) {
+        console.log('✓ Basic student number validation successful');
+        setStudentValidation({
+          isValidating: false,
+          isValid: true,
+          message: '✓ Student number verified. Enter your full name to complete validation.',
+          nameValid: null,
+          nameMessage: 'Please enter your full name to verify identity.',
+          expectedName: null
+        });
+      } else {
+        console.log('❌ Student number not found');
+        setStudentValidation({
+          isValidating: false,
+          isValid: false,
+          message: '⚠️ Student number not found in database. Please contact the administrator to register your student information.',
+          nameValid: null,
+          nameMessage: '',
+          expectedName: null
+        });
+      }
+    } catch (error) {
+      console.error('❌ Basic validation error:', error);
+      setStudentValidation({
+        isValidating: false,
+        isValid: false,
+        message: 'Error validating student number. Please try again.',
+        nameValid: null,
+        nameMessage: '',
+        expectedName: null
+      });
+    }
   };
 
   const resetForm = () => {
@@ -134,6 +297,7 @@ const SubmissionForm = () => {
       thesisTitle: ''
     });
     setUserType('lpu');
+    setStudentValidation({ isValidating: false, isValid: null, message: '', nameValid: null, nameMessage: '', expectedName: null });
   };
 
   const handleFeedbackSubmit = async (feedback: { rating: number; comments: string }) => {
@@ -183,6 +347,76 @@ const SubmissionForm = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Additional validation for LPU students
+    if (userType === 'lpu') {
+      if (!formData.studentNumber.trim()) {
+        toast({
+          title: "Validation Error",
+          description: "Student number is required for LPU students.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Check if student validation is still in progress
+      if (studentValidation.isValidating) {
+        toast({
+          title: "Please Wait",
+          description: "Student number validation is in progress. Please wait.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Check if student number is invalid
+      if (studentValidation.isValid === false) {
+        toast({
+          title: "Invalid Student Number",
+          description: "Your student number is not registered in the system. Please contact the administrator to register your information before submitting.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Check if student name validation failed
+      if (studentValidation.nameValid === false) {
+        toast({
+          title: "Name Validation Failed",
+          description: "Your name does not match the name registered with your student number. Please enter the correct name as registered in the system.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Check if both student number and name need to be validated
+      if (!formData.fullName.trim()) {
+        toast({
+          title: "Validation Error",
+          description: "Full name is required for LPU students.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // If validation hasn't been performed yet, do it now
+      if (studentValidation.isValid === null || (studentValidation.isValid === true && studentValidation.nameValid === null)) {
+        await validateStudentNumber(formData.studentNumber.trim(), formData.fullName.trim());
+        // Don't proceed with submission, let user see validation result first
+        return;
+      }
+
+      // Require both student number and name to be valid
+      if (studentValidation.isValid !== true || studentValidation.nameValid !== true) {
+        toast({
+          title: "Validation Required",
+          description: "Please ensure both your student number and name are verified before submitting.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+    
     setIsSubmitting(true);
     
     try {
@@ -271,14 +505,20 @@ const SubmissionForm = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div 
                   className={`p-4 border-2 rounded-lg transition-all ${userType === 'lpu' ? 'border-red-400 bg-red-50' : 'border-gray-200 hover:border-gray-300'}`}
-                  onClick={() => setUserType('lpu')}
+                  onClick={() => {
+                    setUserType('lpu');
+                    setStudentValidation({ isValidating: false, isValid: null, message: '' });
+                  }}
                 >
                   <label className="flex items-center space-x-3 cursor-pointer">
                     <input
                       type="radio"
                       value="lpu"
                       checked={userType === 'lpu'}
-                      onChange={(e) => setUserType(e.target.value as 'lpu' | 'non-lpu')}
+                      onChange={(e) => {
+                        setUserType(e.target.value as 'lpu' | 'non-lpu');
+                        setStudentValidation({ isValidating: false, isValid: null, message: '' });
+                      }}
                       className="w-4 h-4 text-red-600 focus:ring-red-500"
                     />
                     <Users className="h-5 w-5 text-red-600" />
@@ -287,14 +527,20 @@ const SubmissionForm = () => {
                 </div>
                 <div 
                   className={`p-4 border-2 rounded-lg transition-all ${userType === 'non-lpu' ? 'border-red-400 bg-red-50' : 'border-gray-200 hover:border-gray-300'}`}
-                  onClick={() => setUserType('non-lpu')}
+                  onClick={() => {
+                    setUserType('non-lpu');
+                    setStudentValidation({ isValidating: false, isValid: null, message: '' });
+                  }}
                 >
                   <label className="flex items-center space-x-3 cursor-pointer">
                     <input
                       type="radio"
                       value="non-lpu"
                       checked={userType === 'non-lpu'}
-                      onChange={(e) => setUserType(e.target.value as 'lpu' | 'non-lpu')}
+                      onChange={(e) => {
+                        setUserType(e.target.value as 'lpu' | 'non-lpu');
+                        setStudentValidation({ isValidating: false, isValid: null, message: '' });
+                      }}
                       className="w-4 h-4 text-red-600 focus:ring-red-500"
                     />
                     <School className="h-5 w-5 text-red-600" />
@@ -309,16 +555,40 @@ const SubmissionForm = () => {
               {/* Full Name */}
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-gray-700">
-                  Full Name
+                  Student Name {userType === 'lpu' && <span className="text-red-500">*</span>}
                 </label>
                 <input
                   type="text"
                   value={formData.fullName}
                   onChange={(e) => handleInputChange('fullName', e.target.value)}
-                  className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-red-400 focus:ring-1 focus:ring-red-200 transition-all"
-                  placeholder="Enter your full name"
+                  className={`w-full p-3 border-2 rounded-lg focus:ring-1 transition-all ${
+                    userType === 'lpu' && formData.fullName.trim() && studentValidation.nameValid !== null
+                      ? studentValidation.nameValid === true
+                        ? 'border-green-400 focus:border-green-400 focus:ring-green-200'
+                        : studentValidation.nameValid === false
+                        ? 'border-red-400 focus:border-red-400 focus:ring-red-200'
+                        : 'border-gray-200 focus:border-red-400 focus:ring-red-200'
+                      : 'border-gray-200 focus:border-red-400 focus:ring-red-200'
+                  }`}
+                  placeholder="Enter your first name and last name"
                   required
                 />
+                {userType === 'lpu' && studentValidation.nameMessage && (
+                  <p className={`text-sm mt-1 ${
+                    studentValidation.nameValid === true 
+                      ? 'text-green-600' 
+                      : studentValidation.nameValid === false 
+                      ? 'text-red-600' 
+                      : 'text-blue-600'
+                  }`}>
+                    {studentValidation.nameMessage}
+                  </p>
+                )}
+                {userType === 'lpu' && (
+                  <p className="text-xs text-gray-500">
+                    Your name must match the name registered with your student number.
+                  </p>
+                )}
               </div>
 
               {/* Student Number or School */}
@@ -326,17 +596,48 @@ const SubmissionForm = () => {
                 <label className="block text-sm font-medium text-gray-700">
                   {userType === 'lpu' ? 'Student Number' : 'Name of School'}
                 </label>
-                <input
-                  type="text"
-                  value={userType === 'lpu' ? formData.studentNumber : formData.school}
-                  onChange={(e) => handleInputChange(
-                    userType === 'lpu' ? 'studentNumber' : 'school', 
-                    e.target.value
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={userType === 'lpu' ? formData.studentNumber : formData.school}
+                    onChange={(e) => handleInputChange(
+                      userType === 'lpu' ? 'studentNumber' : 'school', 
+                      e.target.value
+                    )}
+                    className={`w-full p-3 border-2 rounded-lg focus:ring-1 transition-all ${
+                      userType === 'lpu' && formData.studentNumber.trim() 
+                        ? studentValidation.isValid === true
+                          ? 'border-green-400 focus:border-green-400 focus:ring-green-200'
+                          : studentValidation.isValid === false
+                          ? 'border-red-400 focus:border-red-400 focus:ring-red-200'
+                          : 'border-yellow-400 focus:border-yellow-400 focus:ring-yellow-200'
+                        : 'border-gray-200 focus:border-red-400 focus:ring-red-200'
+                    }`}
+                    placeholder={userType === 'lpu' ? 'Enter student number (8-digits)' : 'Enter school name'}
+                    required
+                  />
+                  {userType === 'lpu' && studentValidation.isValidating && (
+                    <div className="absolute right-3 top-3">
+                      <div className="w-5 h-5 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin"></div>
+                    </div>
                   )}
-                  className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-red-400 focus:ring-1 focus:ring-red-200 transition-all"
-                  placeholder={userType === 'lpu' ? 'Enter student number' : 'Enter school name'}
-                  required
-                />
+                </div>
+                {userType === 'lpu' && studentValidation.message && (
+                  <p className={`text-sm mt-1 ${
+                    studentValidation.isValid === true 
+                      ? 'text-green-600' 
+                      : studentValidation.isValid === false 
+                      ? 'text-red-600' 
+                      : 'text-yellow-600'
+                  }`}>
+                    {studentValidation.message}
+                  </p>
+                )}
+                {userType === 'lpu' && (
+                  <p className="text-xs text-gray-500">
+                    Your student number must be registered in the system to submit a form.
+                  </p>
+                )}
               </div>
 
               {/* Campus */}

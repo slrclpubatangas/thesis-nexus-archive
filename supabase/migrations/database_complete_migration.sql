@@ -830,3 +830,373 @@ $$;
 
 -- Allow authenticated users to call it
 GRANT EXECUTE ON FUNCTION public.admin_delete_user_complete(uuid) TO authenticated;
+
+-- Migration: Add students table and RLS for admin-only access
+-- Date: 2025-08-19
+
+-- 1) Create students table
+CREATE TABLE IF NOT EXISTS public.students (
+  student_no TEXT PRIMARY KEY,
+  full_name TEXT NOT NULL,
+  course_section TEXT NOT NULL,
+  email TEXT NOT NULL,
+  school_year TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 2) Trigger to maintain updated_at
+CREATE OR REPLACE FUNCTION public.students_set_updated_at()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_students_set_updated_at ON public.students;
+CREATE TRIGGER trg_students_set_updated_at
+BEFORE UPDATE ON public.students
+FOR EACH ROW EXECUTE FUNCTION public.students_set_updated_at();
+
+-- 3) Indexes for common lookups
+CREATE INDEX IF NOT EXISTS idx_students_course_section ON public.students(course_section);
+CREATE INDEX IF NOT EXISTS idx_students_school_year ON public.students(school_year);
+CREATE INDEX IF NOT EXISTS idx_students_email ON public.students(email);
+
+-- 4) Enable RLS
+ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
+
+-- 5) RLS Policies: Admin-only access via existing is_admin_user()
+-- Select
+DROP POLICY IF EXISTS "Admins can select students" ON public.students;
+CREATE POLICY "Admins can select students"
+ON public.students
+FOR SELECT
+USING (is_admin_user());
+
+-- Insert
+DROP POLICY IF EXISTS "Admins can insert students" ON public.students;
+CREATE POLICY "Admins can insert students"
+ON public.students
+FOR INSERT
+WITH CHECK (is_admin_user());
+
+-- Update
+DROP POLICY IF EXISTS "Admins can update students" ON public.students;
+CREATE POLICY "Admins can update students"
+ON public.students
+FOR UPDATE
+USING (is_admin_user())
+WITH CHECK (is_admin_user());
+
+-- Delete
+DROP POLICY IF EXISTS "Admins can delete students" ON public.students;
+CREATE POLICY "Admins can delete students"
+ON public.students
+FOR DELETE
+USING (is_admin_user());
+
+-- Migration: Add foreign key relationship between students and thesis_submissions
+-- Date: 2025-08-19
+
+-- 1) Add foreign key constraint to thesis_submissions table
+-- This creates a reference from thesis_submissions.student_number to students.student_no
+ALTER TABLE public.thesis_submissions 
+ADD CONSTRAINT fk_thesis_submissions_student_number 
+FOREIGN KEY (student_number) 
+REFERENCES public.students(student_no) 
+ON DELETE SET NULL 
+ON UPDATE CASCADE;
+
+-- 2) Create an index on student_number for better performance
+CREATE INDEX IF NOT EXISTS idx_thesis_submissions_student_number 
+ON public.thesis_submissions(student_number);
+
+-- 3) Create a function to validate student existence for LPU students
+CREATE OR REPLACE FUNCTION public.validate_lpu_student(student_num TEXT)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 
+    FROM public.students 
+    WHERE student_no = student_num
+  );
+$$;
+
+-- 4) Grant execute permission to anonymous users (for public form submission)
+GRANT EXECUTE ON FUNCTION public.validate_lpu_student(TEXT) TO anon;
+GRANT EXECUTE ON FUNCTION public.validate_lpu_student(TEXT) TO authenticated;
+
+-- 5) Add a comment explaining the relationship
+COMMENT ON CONSTRAINT fk_thesis_submissions_student_number ON public.thesis_submissions IS 
+'Foreign key relationship to ensure student_number exists in students table for LPU students';
+
+COMMENT ON FUNCTION public.validate_lpu_student IS 
+'Function to validate if a student number exists in the students table. Used for form validation.';
+
+-- Fix student validation function and ensure it works correctly
+-- Date: 2025-08-19
+
+-- 1) Ensure the validate_lpu_student function exists and works
+CREATE OR REPLACE FUNCTION public.validate_lpu_student(student_num TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+AS $$
+BEGIN
+  -- Log the input for debugging
+  RAISE NOTICE 'Validating student number: %', student_num;
+  
+  -- Check if student exists
+  RETURN EXISTS (
+    SELECT 1 
+    FROM public.students 
+    WHERE student_no = student_num
+  );
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE NOTICE 'Error in validate_lpu_student: %', SQLERRM;
+    RETURN false;
+END;
+$$;
+
+-- 2) Grant proper permissions to all users (including anonymous)
+REVOKE ALL ON FUNCTION public.validate_lpu_student(TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.validate_lpu_student(TEXT) TO anon;
+GRANT EXECUTE ON FUNCTION public.validate_lpu_student(TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.validate_lpu_student(TEXT) TO service_role;
+
+-- 3) Create a simple test function to verify the validation works
+CREATE OR REPLACE FUNCTION public.test_student_validation()
+RETURNS TABLE(
+  student_count BIGINT,
+  sample_student TEXT,
+  validation_result BOOLEAN
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  test_student_no TEXT;
+BEGIN
+  -- Get total student count
+  SELECT COUNT(*) INTO student_count FROM public.students;
+  
+  -- Get first student number for testing
+  SELECT student_no INTO test_student_no 
+  FROM public.students 
+  LIMIT 1;
+  
+  sample_student := test_student_no;
+  
+  -- Test validation
+  IF test_student_no IS NOT NULL THEN
+    SELECT public.validate_lpu_student(test_student_no) INTO validation_result;
+  ELSE
+    validation_result := FALSE;
+  END IF;
+  
+  RETURN NEXT;
+END;
+$$;
+
+-- 4) Grant permission to test function
+GRANT EXECUTE ON FUNCTION public.test_student_validation() TO anon;
+GRANT EXECUTE ON FUNCTION public.test_student_validation() TO authenticated;
+
+-- 5) Run a quick test
+DO $$
+DECLARE
+  test_result RECORD;
+BEGIN
+  SELECT * INTO test_result FROM public.test_student_validation();
+  
+  RAISE NOTICE '=== STUDENT VALIDATION TEST ===';
+  RAISE NOTICE 'Total students in database: %', test_result.student_count;
+  RAISE NOTICE 'Sample student number: %', test_result.sample_student;
+  RAISE NOTICE 'Validation function result: %', test_result.validation_result;
+  
+  IF test_result.student_count > 0 AND test_result.validation_result = TRUE THEN
+    RAISE NOTICE '✅ Student validation function is working correctly!';
+  ELSE
+    RAISE NOTICE '❌ Student validation function may have issues';
+  END IF;
+END;
+$$;
+
+-- Add name validation to student verification
+-- Date: 2025-08-19
+
+-- 1) Create enhanced validation function that checks both student number and name
+CREATE OR REPLACE FUNCTION public.validate_lpu_student_with_name(
+  student_num TEXT,
+  student_name TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+AS $$
+DECLARE
+  student_record RECORD;
+  result JSONB;
+BEGIN
+  -- Log the input for debugging
+  RAISE NOTICE 'Validating student number: % with name: %', student_num, student_name;
+  
+  -- Check if student exists and get their details
+  SELECT student_no, full_name, course_section, email, school_year 
+  INTO student_record
+  FROM public.students 
+  WHERE student_no = student_num;
+  
+  IF NOT FOUND THEN
+    -- Student number doesn't exist
+    result := jsonb_build_object(
+      'valid', false,
+      'error', 'student_not_found',
+      'message', 'Student number not found in database'
+    );
+  ELSE
+    -- Student exists, now check if name matches
+    -- Use case-insensitive comparison and trim whitespace
+    IF LOWER(TRIM(student_record.full_name)) = LOWER(TRIM(student_name)) THEN
+      -- Perfect match
+      result := jsonb_build_object(
+        'valid', true,
+        'student_details', jsonb_build_object(
+          'student_no', student_record.student_no,
+          'full_name', student_record.full_name,
+          'course_section', student_record.course_section,
+          'email', student_record.email,
+          'school_year', student_record.school_year
+        )
+      );
+    ELSE
+      -- Name doesn't match
+      result := jsonb_build_object(
+        'valid', false,
+        'error', 'name_mismatch',
+        'message', 'Student name does not match the name on file',
+        'expected_name', student_record.full_name
+      );
+    END IF;
+  END IF;
+  
+  RETURN result;
+  
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE NOTICE 'Error in validate_lpu_student_with_name: %', SQLERRM;
+    RETURN jsonb_build_object(
+      'valid', false,
+      'error', 'validation_error',
+      'message', 'An error occurred during validation'
+    );
+END;
+$$;
+
+-- 2) Keep the old function for backward compatibility but enhance it
+CREATE OR REPLACE FUNCTION public.validate_lpu_student(student_num TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+AS $$
+BEGIN
+  -- Log the input for debugging
+  RAISE NOTICE 'Validating student number (basic): %', student_num;
+  
+  -- Check if student exists
+  RETURN EXISTS (
+    SELECT 1 
+    FROM public.students 
+    WHERE student_no = student_num
+  );
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE NOTICE 'Error in validate_lpu_student: %', SQLERRM;
+    RETURN false;
+END;
+$$;
+
+-- 3) Grant proper permissions
+REVOKE ALL ON FUNCTION public.validate_lpu_student_with_name(TEXT, TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.validate_lpu_student_with_name(TEXT, TEXT) TO anon;
+GRANT EXECUTE ON FUNCTION public.validate_lpu_student_with_name(TEXT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.validate_lpu_student_with_name(TEXT, TEXT) TO service_role;
+
+REVOKE ALL ON FUNCTION public.validate_lpu_student(TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.validate_lpu_student(TEXT) TO anon;
+GRANT EXECUTE ON FUNCTION public.validate_lpu_student(TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.validate_lpu_student(TEXT) TO service_role;
+
+-- 4) Create test function
+CREATE OR REPLACE FUNCTION public.test_name_validation()
+RETURNS TABLE(
+  student_count BIGINT,
+  sample_student_no TEXT,
+  sample_student_name TEXT,
+  validation_result JSONB
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  test_student_record RECORD;
+BEGIN
+  -- Get total student count
+  SELECT COUNT(*) INTO student_count FROM public.students;
+  
+  -- Get first student for testing
+  SELECT student_no, full_name INTO test_student_record
+  FROM public.students 
+  LIMIT 1;
+  
+  sample_student_no := test_student_record.student_no;
+  sample_student_name := test_student_record.full_name;
+  
+  -- Test validation
+  IF test_student_record.student_no IS NOT NULL THEN
+    SELECT public.validate_lpu_student_with_name(
+      test_student_record.student_no, 
+      test_student_record.full_name
+    ) INTO validation_result;
+  ELSE
+    validation_result := jsonb_build_object('valid', false, 'error', 'no_students');
+  END IF;
+  
+  RETURN NEXT;
+END;
+$$;
+
+-- 5) Grant permission to test function
+GRANT EXECUTE ON FUNCTION public.test_name_validation() TO anon;
+GRANT EXECUTE ON FUNCTION public.test_name_validation() TO authenticated;
+
+-- 6) Run test
+DO $$
+DECLARE
+  test_result RECORD;
+BEGIN
+  SELECT * INTO test_result FROM public.test_name_validation();
+  
+  RAISE NOTICE '=== STUDENT NAME VALIDATION TEST ===';
+  RAISE NOTICE 'Total students in database: %', test_result.student_count;
+  RAISE NOTICE 'Sample student number: %', test_result.sample_student_no;
+  RAISE NOTICE 'Sample student name: %', test_result.sample_student_name;
+  RAISE NOTICE 'Validation result: %', test_result.validation_result;
+  
+  IF test_result.student_count > 0 AND (test_result.validation_result->>'valid')::boolean = TRUE THEN
+    RAISE NOTICE '✅ Student name validation function is working correctly!';
+  ELSE
+    RAISE NOTICE '❌ Student name validation function may have issues';
+  END IF;
+END;
+$$;

@@ -151,6 +151,36 @@ export type Database = {
         };
         Relationships: [];
       };
+      students: {
+        Row: {
+          student_no: string;
+          full_name: string;
+          course_section: string;
+          email: string;
+          school_year: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          student_no: string;
+          full_name: string;
+          course_section: string;
+          email: string;
+          school_year: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          student_no?: string;
+          full_name?: string;
+          course_section?: string;
+          email?: string;
+          school_year?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       thesis_data: {
         Row: {
           authors: string[];
@@ -231,6 +261,12 @@ export type Database = {
     Functions: {
       is_admin_user: {
         Args: Record<string, never>;
+        Returns: boolean;
+      };
+      validate_lpu_student: {
+        Args: {
+          student_num: string;
+        };
         Returns: boolean;
       };
     };
