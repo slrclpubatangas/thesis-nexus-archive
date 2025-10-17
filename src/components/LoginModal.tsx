@@ -1,5 +1,6 @@
 // LoginModal.tsx
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
   Lock,
@@ -142,19 +143,39 @@ await fetch(
   };
 
   /* ------------- Render ------------- */
-  if (!mounted) return null;
-
   return (
-    <div
-      className={`fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 backdrop-blur-sm transition-opacity duration-300 ${
-        isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
-      }`}
-    >
-      <div
-        className={`bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 relative overflow-hidden transform transition-all duration-500 ease-out ${
-          isOpen ? 'scale-100 translate-y-0 opacity-100' : 'scale-95 translate-y-4 opacity-0'
-        }`}
-      >
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 backdrop-blur-sm"
+          onClick={onClose}
+        >
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0, y: 20 }}
+            animate={{ 
+              scale: 1, 
+              opacity: 1, 
+              y: 0,
+              transition: {
+                type: "spring",
+                damping: 20,
+                stiffness: 300,
+                duration: 0.4
+              }
+            }}
+            exit={{ 
+              scale: 0.9, 
+              opacity: 0, 
+              y: 10,
+              transition: { duration: 0.2 }
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 relative overflow-hidden"
+          >
         {/* Animated Background & Orbs */}
         <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-white to-purple-50 opacity-50"></div>
         <div className="absolute -top-4 -right-4 w-24 h-24 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full opacity-20 blur-xl animate-pulse"></div>
@@ -314,8 +335,10 @@ await fetch(
             </form>
           )}
         </div>
-      </div>
-    </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 };
 

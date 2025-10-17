@@ -2,9 +2,10 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AuthProvider } from "./hooks/useAuth";
 import { useEffect, useState } from 'react';
+import { AnimatePresence } from 'framer-motion';
 import ChangePasswordModal from './components/admin/ChangePasswordModal';
 import Landing from "./pages/Landing";
 import Index from "./pages/Index";
@@ -55,6 +56,21 @@ const queryClient = new QueryClient({
   },
 });
 
+const AnimatedRoutes = () => {
+  const location = useLocation();
+  
+  return (
+    <AnimatePresence mode="wait">
+      <Routes location={location} key={location.pathname}>
+        <Route path="/" element={<Landing />} />
+        <Route path="/submission" element={<Index />} />
+        {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </AnimatePresence>
+  );
+};
+
 const App = () => {
   const [showChangePw, setShowChangePw] = useState(false);
 
@@ -72,18 +88,13 @@ const App = () => {
             <Toaster />
             <Sonner />
             <BrowserRouter>
-              <Routes>
-                <Route path="/" element={<Landing />} />
-                <Route path="/submission" element={<Index />} />
-                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                <Route path="*" element={<NotFound />} />
-              </Routes>
+              <AnimatedRoutes />
             </BrowserRouter>
 
             {/* Password-change modal */}
             <ChangePasswordModal
               isOpen={showChangePw}
-              onClose={() => setShowChangePw(false)} userId={""} email={""}            />
+              onClose={() => setShowChangePw(false)} userId="" email=""            />
           </AuthProvider>
         </TooltipProvider>
       </QueryClientProvider>

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion } from 'framer-motion';
 import Header from '../components/Header';
 import SubmissionFormBook from '../components/SubmissionFormBook';
 import AdminDashboard from '../components/admin/AdminDashboard';
@@ -25,7 +26,13 @@ const Index = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <motion.div 
+      className="min-h-screen bg-gray-50"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.3 }}
+    >
       <Header 
         onAdminLoginClick={() => setShowLoginModal(true)} 
         showAdminLogin={!user}
@@ -44,7 +51,7 @@ const Index = () => {
         isOpen={showLoginModal} 
         onClose={() => setShowLoginModal(false)} 
       />
-    </div>
+    </motion.div>
   );
 };
 

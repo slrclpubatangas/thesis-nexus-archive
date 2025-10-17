@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { FileText, Users, School, BookOpen, ArrowRight, UserPlus } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { useToast } from '../hooks/use-toast';
 import { supabase } from '../integrations/supabase/client';
 import ThesisTitleSearch from './ThesisTitleSearch';
@@ -207,10 +208,33 @@ const SubmissionFormBook = () => {
   /* ========================  JSX  ========================= */
   /* ========================================================= */
   return (
-    <div className="min-h-screen bg-gradient-to-br from-red-50 via-pink-50 to-blue-50 py-8">
+    <motion.div 
+      className="min-h-screen bg-gradient-to-br from-red-50 via-pink-50 to-blue-50 py-8"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ 
+        opacity: 1, 
+        y: 0,
+        transition: { 
+          duration: 0.5, 
+          ease: "easeOut",
+          when: "beforeChildren",
+          staggerChildren: 0.1
+        }
+      }}
+      exit={{ 
+        opacity: 0,
+        y: -20,
+        transition: { duration: 0.3 }
+      }}
+    >
       <div className="max-w-6xl mx-auto px-4">
         {/* ---- header ---- */}
-        <div className="text-center mb-8">
+        <motion.div 
+          className="text-center mb-8"
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1, duration: 0.4 }}
+        >
           <div className="flex items-center justify-center space-x-3 mb-4">
             <BookOpen className="h-8 w-8 text-red-600" />
             <h2 className="text-2xl md:text-3xl font-bold text-gray-800">
@@ -218,10 +242,15 @@ const SubmissionFormBook = () => {
             </h2>
           </div>
           <div className="w-24 h-1 bg-gradient-to-r from-red-500 to-blue-500 mx-auto rounded-full" />
-        </div>
+        </motion.div>
 
         {/* ---- book container ---- */}
-        <div className={styles.bookContainer}>
+        <motion.div 
+          className={styles.bookContainer}
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.2, duration: 0.5, ease: "easeOut" }}
+        >
           <div className={styles.bookWrapper}>
             {/*  LEFT  –  Non-LPU  */}
             <div
@@ -301,14 +330,14 @@ const SubmissionFormBook = () => {
                   <div className={styles.welcomeContent}>
                     <UserPlus size={60} className="mx-auto mb-4 text-white" />
                     <h1>Hello, friend!</h1>
-                    <p>Enter your details as NON-LPU student</p>
+                    <p>Are you an LPU student?</p>
                     <button
                       onClick={handleFlipToLPU}
                       className={styles.submitButton}
                       disabled={isAnimating}
                     >
                       <Users size={20} />
-                      Submit as LPU Student
+                      CLICK HERE!
                     </button>
                   </div>
                 </div>
@@ -320,14 +349,14 @@ const SubmissionFormBook = () => {
                   <div className={styles.welcomeContent}>
                     <ArrowRight size={60} className="mx-auto mb-4 text-white" />
                     <h1>Welcome Back!</h1>
-                    <p>Enter your details as LPU student</p>
+                    <p>Are you NON-LPU student?</p>
                     <button
                       onClick={handleFlipToNonLPU}
                       className={styles.submitButton}
                       disabled={isAnimating}
                     >
                       <School size={20} />
-                      Submit as NON-LPU Student
+                      CLICK HERE!
                     </button>
                   </div>
                 </div>
@@ -429,7 +458,7 @@ const SubmissionFormBook = () => {
               </div>
             </div>
           </div>
-        </div>
+        </motion.div>
       </div>
 
       {/* ---- feedback modal ---- */}
@@ -439,7 +468,7 @@ const SubmissionFormBook = () => {
           onSubmit={handleFeedbackSubmit}
         />
       )}
-    </div>
+    </motion.div>
   );
 };
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown } from 'lucide-react';
+import { motion } from 'framer-motion';
 import Header from './Header';
 import '../styles/SplashScreen.css';
 import BgImage from './bg_image.png';
@@ -12,19 +12,12 @@ import PirateImage from './Pirate_Mascot.png';
 const SplashScreen = () => {
   const navigate = useNavigate();
   const [isLoaded, setIsLoaded] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const backgroundImages = React.useMemo(() => [LimaImage, MainImage, PirateImage], []);
 
   useEffect(() => {
     // Trigger animations on mount
     const timer = setTimeout(() => setIsLoaded(true), 100);
-
-    // Handle scroll indicator
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 50);
-    };
-    window.addEventListener('scroll', handleScroll);
 
     // Slideshow effect
     const slideshowInterval = setInterval(() => {
@@ -33,7 +26,6 @@ const SplashScreen = () => {
 
     return () => {
       clearTimeout(timer);
-      window.removeEventListener('scroll', handleScroll);
       clearInterval(slideshowInterval);
     };
   }, [backgroundImages]);
@@ -43,7 +35,15 @@ const SplashScreen = () => {
   };
 
   return (
-    <div className="relative min-h-screen">
+    <motion.div 
+      className="relative min-h-screen"
+      initial={{ opacity: 1 }}
+      exit={{ 
+        opacity: 0,
+        scale: 0.95,
+        transition: { duration: 0.4, ease: "easeInOut" }
+      }}
+    >
       {/* Header Component - Must be first for sticky positioning */}
       <div className="relative z-50">
         <Header showAdminLogin={true} />
@@ -71,13 +71,6 @@ const SplashScreen = () => {
       <div className="relative z-10 min-h-screen flex items-center -mt-16 pt-16">
         <div className="container mx-auto px-8 lg:px-16">
           <div className="max-w-3xl">
-            {/* Side dots indicator */}
-            <div className="absolute left-8 top-1/2 -translate-y-1/2 hidden lg:flex flex-col space-y-3">
-              <div className="w-2 h-2 rounded-full bg-white"></div>
-              <div className="w-2 h-2 rounded-full bg-white/40"></div>
-              <div className="w-2 h-2 rounded-full bg-white/40"></div>
-            </div>
-
             {/* Main heading */}
             <h1 className={`font-bold tracking-wide transition-all duration-1000 ${
               isLoaded ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'
@@ -129,16 +122,7 @@ const SplashScreen = () => {
           </div>
         </div>
       </div>
-
-      {/* Scroll Indicator */}
-      <div className={`absolute bottom-8 left-1/2 -translate-x-1/2 z-10 transition-opacity duration-500 ${
-        scrolled ? 'opacity-0' : 'opacity-100'
-      }`}>
-        <div className="flex flex-col items-center space-y-2 animate-bounce">
-          <ChevronDown className="w-6 h-6 text-white/60" />
-        </div>
-      </div>
-    </div>
+    </motion.div>
   );
 };
 
