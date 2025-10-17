@@ -4,11 +4,17 @@ import { ChevronDown } from 'lucide-react';
 import Header from './Header';
 import '../styles/SplashScreen.css';
 import BgImage from './bg_image.png';
+import ClickSpark from './ClickSpark';
+import LimaImage from './LIMA_Campus-bg.png';
+import MainImage from './Main_Campus-bg.png';
+import PirateImage from './Pirate_Mascot.png';
 
 const SplashScreen = () => {
   const navigate = useNavigate();
   const [isLoaded, setIsLoaded] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const backgroundImages = React.useMemo(() => [LimaImage, MainImage, PirateImage], []);
 
   useEffect(() => {
     // Trigger animations on mount
@@ -20,11 +26,17 @@ const SplashScreen = () => {
     };
     window.addEventListener('scroll', handleScroll);
 
+    // Slideshow effect
+    const slideshowInterval = setInterval(() => {
+      setCurrentImageIndex((prevIndex) => (prevIndex + 1) % backgroundImages.length);
+    }, 5000); // Change image every 5 seconds
+
     return () => {
       clearTimeout(timer);
       window.removeEventListener('scroll', handleScroll);
+      clearInterval(slideshowInterval);
     };
-  }, []);
+  }, [backgroundImages]);
 
   const handleNavigate = () => {
     navigate('/submission');
@@ -37,15 +49,22 @@ const SplashScreen = () => {
         <Header showAdminLogin={true} />
       </div>
 
-      {/* Library Background Image */}
+      {/* Library Background Image with Slideshow */}
       <div className="fixed inset-0 z-0">
-        <div 
-          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-          style={{ backgroundImage: `url(${BgImage})`}}
-        />
+        {backgroundImages.map((image, index) => (
+          <div
+            key={index}
+            className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-opacity duration-1000"
+            style={{
+              backgroundImage: `url(${image})`,
+              opacity: currentImageIndex === index ? 1 : 0,
+              zIndex: currentImageIndex === index ? 1 : 0
+            }}
+          />
+        ))}
         {/* Enhanced overlay for better text readability with warm tones */}
-        <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/50 to-transparent" />
-        <div className="absolute inset-0 bg-black/30" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/50 to-transparent z-10" />
+        <div className="absolute inset-0 bg-black/30 z-10" />
       </div>
 
       {/* Hero Content */}
