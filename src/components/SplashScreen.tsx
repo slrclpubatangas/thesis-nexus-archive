@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronDown } from 'lucide-react';
 import Header from './Header';
 import '../styles/SplashScreen.css';
+import BgImage from './bg_image.png';
 
 const SplashScreen = () => {
   const navigate = useNavigate();
@@ -40,9 +41,7 @@ const SplashScreen = () => {
       <div className="fixed inset-0 z-0">
         <div 
           className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-          style={{
-            backgroundImage: `url('src/components/bg_image.png')`,
-          }}
+          style={{ backgroundImage: `url(${BgImage})`}}
         />
         {/* Enhanced overlay for better text readability with warm tones */}
         <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/50 to-transparent" />
