@@ -5,15 +5,16 @@ import Header from './Header';
 import '../styles/SplashScreen.css';
 import BgImage from './bg_image.png';
 import ClickSpark from './ClickSpark';
-import LimaImage from './LIMA_Campus-bg.png';
-import MainImage from './Main_Campus-bg.png';
-import PirateImage from './Pirate_Mascot.png';
 
 const SplashScreen = () => {
   const navigate = useNavigate();
   const [isLoaded, setIsLoaded] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const backgroundImages = React.useMemo(() => [LimaImage, MainImage, PirateImage], []);
+  const backgroundImages = React.useMemo(() => [
+    "https://i.imgur.com/AxPuJH1.jpeg",
+    "https://i.imgur.com/6ZUmipU.jpeg",
+    "https://i.imgur.com/9A2QqiQ.jpeg"
+  ], []);
 
   useEffect(() => {
     // Trigger animations on mount
@@ -68,29 +69,45 @@ const SplashScreen = () => {
       </div>
 
       {/* Hero Content */}
-      <div className="relative z-10 min-h-screen flex items-center -mt-16 pt-16">
-        <div className="container mx-auto px-8 lg:px-16">
-          <div className="max-w-3xl">
-            {/* Main heading */}
-            <h1 className={`font-bold tracking-wide transition-all duration-1000 ${
+      <div className="relative z-10 min-h-screen flex items-center justify-center -mt-16 pt-16">
+        {/* Animated decorative elements */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-20 left-10 w-72 h-72 bg-blue-500/10 rounded-full blur-3xl animate-float" />
+          <div className="absolute bottom-20 right-10 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl animate-float-delayed" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gradient-to-r from-cyan-500/5 to-blue-500/5 rounded-full blur-3xl animate-pulse-slow" />
+        </div>
+
+        <div className="container mx-auto px-8">
+          <div className="max-w-4xl mx-auto text-center">
+            {/* Main heading with gradient */}
+            <h1 className={`font-bold tracking-tight transition-all duration-1000 ${
               isLoaded ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'
             }`}>
-              <span className="text-6xl md:text-7xl lg:text-8xl block leading-tight text-white drop-shadow-[0_4px_8px_rgba(0,0,0,0.8)]">
+              <span className="text-6xl md:text-7xl lg:text-8xl block leading-tight bg-gradient-to-r from-white via-blue-100 to-white bg-clip-text text-transparent drop-shadow-[0_4px_12px_rgba(0,0,0,0.9)] mb-2">
                 ACADEMIC
               </span>
-              <span className="text-6xl md:text-7xl lg:text-8xl block leading-tight text-white drop-shadow-[0_4px_8px_rgba(0,0,0,0.8)]">
+              <span className="text-6xl md:text-7xl lg:text-8xl block leading-tight bg-gradient-to-r from-white via-purple-100 to-white bg-clip-text text-transparent drop-shadow-[0_4px_12px_rgba(0,0,0,0.9)]">
                 ARCHIVE
               </span>
             </h1>
+
+            {/* Decorative divider */}
+            <div className={`flex items-center justify-center gap-3 my-6 transition-all duration-1000 delay-200 ${
+              isLoaded ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'
+            }`}>
+              <div className="h-px w-12 bg-gradient-to-r from-transparent to-white/50" />
+              <div className="w-2 h-2 bg-white/70 rounded-full" />
+              <div className="h-px w-12 bg-gradient-to-l from-transparent to-white/50" />
+            </div>
 
             {/* Subtitle */}
             <div className={`mt-8 transition-all duration-1000 delay-300 ${
               isLoaded ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'
             }`}>
-              <h2 className="text-white text-xl md:text-2xl font-semibold mb-4 tracking-wide drop-shadow-[0_2px_6px_rgba(0,0,0,0.8)]">
+              <h2 className="text-white text-xl md:text-2xl font-semibold mb-6 tracking-wide drop-shadow-[0_2px_6px_rgba(0,0,0,0.8)]">
                 AN ARCHIVE EVERYONE DESERVES
               </h2>
-              <p className="text-white text-base md:text-lg font-normal leading-relaxed max-w-2xl drop-shadow-[0_2px_4px_rgba(0,0,0,0.7)] bg-black/20 backdrop-blur-sm p-4 rounded-lg border border-white/10">
+              <p className="text-white/90 text-base md:text-lg font-normal leading-relaxed max-w-2xl mx-auto drop-shadow-[0_2px_4px_rgba(0,0,0,0.7)] bg-gradient-to-br from-black/30 to-black/20 backdrop-blur-md p-6 rounded-2xl border border-white/20 shadow-2xl">
                 Discover a comprehensive digital repository of academic excellence. 
                 From groundbreaking research to innovative theses, our archive preserves 
                 and shares knowledge that shapes the future. Join thousands of scholars 
@@ -98,26 +115,65 @@ const SplashScreen = () => {
               </p>
             </div>
 
+            {/* Feature highlights */}
+            <div className={`mt-10 flex flex-wrap justify-center gap-6 transition-all duration-1000 delay-400 ${
+              isLoaded ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'
+            }`}>
+              <div className="flex items-center gap-2 text-white/80 text-sm">
+                <svg className="w-5 h-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span>Free Access</span>
+              </div>
+              <div className="flex items-center gap-2 text-white/80 text-sm">
+                <svg className="w-5 h-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span>Verified Research</span>
+              </div>
+              <div className="flex items-center gap-2 text-white/80 text-sm">
+                <svg className="w-5 h-5 text-purple-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span>24/7 Availability</span>
+              </div>
+            </div>
+
             {/* CTA Button */}
-            <div className={`mt-10 transition-all duration-1000 delay-500 ${
+            <div className={`mt-12 transition-all duration-1000 delay-500 flex justify-center ${
               isLoaded ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'
             }`}>
               <button
                 onClick={handleNavigate}
-                className="group relative inline-flex items-center px-8 py-4 bg-white/95 backdrop-blur-md text-gray-900 border-2 border-white rounded-lg hover:bg-white hover:scale-105 transition-all duration-300 shadow-[0_4px_12px_rgba(0,0,0,0.5)] hover:shadow-[0_6px_20px_rgba(255,255,255,0.3)]"
+                className="group relative inline-flex items-center px-10 py-5 bg-gradient-to-r from-white to-gray-50 text-gray-900 rounded-xl hover:from-white hover:to-white hover:scale-105 transition-all duration-300 shadow-[0_8px_24px_rgba(0,0,0,0.6)] hover:shadow-[0_12px_32px_rgba(255,255,255,0.4)] border-2 border-white/50 overflow-hidden"
               >
-                <span className="font-semibold tracking-wide text-sm uppercase">
-                  Go to Submission Form
+                {/* Animated gradient overlay */}
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
+                
+                <span className="relative font-bold tracking-wide text-base uppercase flex items-center gap-3">
+                  <span>Go to Submission Form</span>
+                  <svg 
+                    className="w-6 h-6 transition-transform duration-300 group-hover:translate-x-2" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                  </svg>
                 </span>
-                <svg 
-                  className="w-5 h-5 ml-3 transition-transform duration-300 group-hover:translate-x-1" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                </svg>
               </button>
+            </div>
+
+            {/* Scroll indicator */}
+            <div className={`mt-16 transition-all duration-1000 delay-700 ${
+              isLoaded ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'
+            }`}>
+              <div className="flex flex-col items-center gap-2 animate-bounce-slow">
+                <span className="text-white/60 text-xs uppercase tracking-wider">Scroll to explore</span>
+                <svg className="w-6 h-6 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                </svg>
+              </div>
             </div>
           </div>
         </div>

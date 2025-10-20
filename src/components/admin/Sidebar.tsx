@@ -93,17 +93,15 @@ const Sidebar: React.FC<SidebarProps> = ({
             {/* Logo - Always visible, clickable to expand when collapsed */}
             <button
               onClick={() => isCollapsed && setIsCollapsed(false)}
-              className={`flex-shrink-0 hover:opacity-80 transition-opacity ${
+              className={`flex-shrink-0 hover:bg-gray-100 rounded-lg p-2 transition-all ${
                 isCollapsed ? 'cursor-pointer' : 'cursor-default pointer-events-none'
               }`}
               aria-label={isCollapsed ? "Expand sidebar" : ""}
               disabled={!isCollapsed}
             >
-              <img
-                src="https://static.readdy.ai/image/2610098eb4b7d6791c922033875fe1ac/cb8d8ce12e7b02e44cac157a69c7b894.png"
-                alt="UndergradFile"
-                className="h-10 w-10 flex-shrink-0"
-              />
+              <svg className="h-6 w-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
             </button>
             
             {/* Sidebar Toggle Button - ChatGPT Style - Only show when expanded */}
