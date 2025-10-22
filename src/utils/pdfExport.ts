@@ -9,7 +9,8 @@ interface StatsData {
   nonLpuStudents: number;
   campusData: Array<{ name: string; value: number }>;
   monthlyData: Array<{ month: string; submissions: number }>;
-  popularPrograms: Array<{ name: string; count: number; percentage: number }>;
+  popularPrograms: Array<{ name: string; count: number; percentage: number }>; // Contains thesis titles
+  programsByDegree: Array<{ name: string; count: number; percentage: number }>; // Contains programs
   feedbackStats: {
     totalFeedback: number;
     averageRating: number;
@@ -32,6 +33,9 @@ const captureChartAsImage = async (elementId: string): Promise<string | null> =>
       console.warn(`Element with id ${elementId} not found`);
       return null;
     }
+
+    // Wait a bit to ensure charts are fully rendered
+    await new Promise(resolve => setTimeout(resolve, 500));
 
     const canvas = await html2canvas(element, {
       scale: 2,
@@ -122,7 +126,8 @@ export const exportStatisticsToPDF = async (
     pdf.rect(0, 0, pageWidth, pageHeight, 'F');
 
     // Header Section with gradient effect
-    const headerHeight = 35;
+    const headerHeight = 25;
+    const headerHeight2 = 25; // For pages 2-4
     pdf.setFillColor(...colors.primary);
     pdf.rect(0, 0, pageWidth, headerHeight, 'F');
     
@@ -132,30 +137,22 @@ export const exportStatisticsToPDF = async (
       pdf.rect(0, headerHeight - (i * 3.5), pageWidth, 3.5, 'F');
     }
     
-    // Title
+    // Title - centered
     pdf.setFontSize(24);
     pdf.setFont('helvetica', 'bold');
     pdf.setTextColor(255, 255, 255);
-    pdf.text('Thesis Repository Analytics', margin, yPosition + 8);
+    pdf.text('Thesis Repository Analytics', pageWidth / 2, 12, 'center');
     
-    yPosition += 10;
+    // Subtitle - centered
     pdf.setFontSize(11);
     pdf.setFont('helvetica', 'normal');
     pdf.setTextColor(220, 220, 220);
-    pdf.text('Comprehensive overview of thesis submissions and system analytics', margin, yPosition);
-    yPosition += 15;
-
-    // Date filter info in a pill-shaped container
-    const pillWidth = 120;
-    const pillHeight = 8;
-    const pillX = pageWidth - margin - pillWidth;
-    const pillY = 8;
+    pdf.text('Comprehensive overview of thesis submissions and system analytics', pageWidth / 2, 20, 'center');
     
-    pdf.setFillColor(255, 255, 255, 0.2);
-    pdf.roundedRect(pillX, pillY, pillWidth, pillHeight, 4, 4, 'F');
+    // Reset yPosition after header
+    yPosition = headerHeight + 15;
     
-    pdf.setFontSize(8);
-    pdf.setTextColor(255, 255, 255);
+    // Report Period - centered in body above cards
     let filterText = 'Report Period: ';
     if (selectedYear !== 'all') {
       filterText += `Year ${selectedYear}`;
@@ -168,10 +165,12 @@ export const exportStatisticsToPDF = async (
     } else {
       filterText += 'All Time';
     }
-    pdf.text(filterText, pillX + 5, pillY + 5);
+    pdf.setFontSize(10);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(...colors.text);
+    pdf.text(filterText, pageWidth / 2, yPosition, 'center');
     
-    // Reset yPosition after header
-    yPosition = headerHeight + 15;
+    yPosition += 10;
 
     // Key Metrics Cards (4 cards in a row with icons)
     const cardWidth = (pageWidth - (margin * 2) - 15) / 4;
@@ -180,14 +179,15 @@ export const exportStatisticsToPDF = async (
 
     // Card 1: LPU Students
     drawCard(margin, yPosition, cardWidth, cardHeight);
+    
+    // Icon placeholder - top right corner
+    pdf.setFillColor(...colors.primary);
+    pdf.circle(margin + cardWidth - 5, yPosition + 5, 3, 'F');
+    
     pdf.setFontSize(9);
     pdf.setTextColor(...colors.textLight);
     pdf.setFont('helvetica', 'normal');
     pdf.text('LPU Students', margin + 3, yPosition + 8);
-    
-    // Icon placeholder
-    pdf.setFillColor(...colors.primary);
-    pdf.circle(margin + cardWidth - 10, yPosition + 8, 3, 'F');
     
     pdf.setFontSize(20);
     pdf.setFont('helvetica', 'bold');
@@ -204,14 +204,15 @@ export const exportStatisticsToPDF = async (
     // Card 2: External Users
     const card2X = margin + cardWidth + cardSpacing;
     drawCard(card2X, yPosition, cardWidth, cardHeight);
+    
+    // Icon placeholder - top right corner
+    pdf.setFillColor(...colors.accent);
+    pdf.circle(card2X + cardWidth - 5, yPosition + 5, 3, 'F');
+    
     pdf.setFontSize(9);
     pdf.setTextColor(...colors.textLight);
     pdf.setFont('helvetica', 'normal');
     pdf.text('External Users', card2X + 3, yPosition + 8);
-    
-    // Icon placeholder
-    pdf.setFillColor(...colors.accent);
-    pdf.circle(card2X + cardWidth - 10, yPosition + 8, 3, 'F');
     
     pdf.setFontSize(20);
     pdf.setFont('helvetica', 'bold');
@@ -228,14 +229,15 @@ export const exportStatisticsToPDF = async (
     // Card 3: Total Submissions
     const card3X = card2X + cardWidth + cardSpacing;
     drawCard(card3X, yPosition, cardWidth, cardHeight);
+    
+    // Icon placeholder - top right corner
+    pdf.setFillColor(...colors.success);
+    pdf.circle(card3X + cardWidth - 5, yPosition + 5, 3, 'F');
+    
     pdf.setFontSize(9);
     pdf.setTextColor(...colors.textLight);
     pdf.setFont('helvetica', 'normal');
     pdf.text('Total Submissions', card3X + 3, yPosition + 8);
-    
-    // Icon placeholder
-    pdf.setFillColor(...colors.success);
-    pdf.circle(card3X + cardWidth - 10, yPosition + 8, 3, 'F');
     
     pdf.setFontSize(20);
     pdf.setFont('helvetica', 'bold');
@@ -249,14 +251,15 @@ export const exportStatisticsToPDF = async (
     // Card 4: User Feedback
     const card4X = card3X + cardWidth + cardSpacing;
     drawCard(card4X, yPosition, cardWidth, cardHeight);
+    
+    // Icon placeholder - top right corner
+    pdf.setFillColor(...colors.danger);
+    pdf.circle(card4X + cardWidth - 5, yPosition + 5, 3, 'F');
+    
     pdf.setFontSize(9);
     pdf.setTextColor(...colors.textLight);
     pdf.setFont('helvetica', 'normal');
     pdf.text('User Feedback', card4X + 3, yPosition + 8);
-    
-    // Icon placeholder
-    pdf.setFillColor(...colors.danger);
-    pdf.circle(card4X + cardWidth - 10, yPosition + 8, 3, 'F');
     
     pdf.setFontSize(20);
     pdf.setFont('helvetica', 'bold');
@@ -269,21 +272,22 @@ export const exportStatisticsToPDF = async (
 
     yPosition += cardHeight + 15;
 
-    // Popular Research Topics Section
-    yPosition = drawSectionHeader('Popular Research Topics', margin, yPosition);
+    // Popular Researchers by Program Section
+    yPosition = drawSectionHeader('Popular Researchers by Program', margin, yPosition);
     
     const topicsCardHeight = 30;
     drawCard(margin, yPosition, pageWidth - (margin * 2), topicsCardHeight);
     
-    if (stats.popularPrograms.length > 0) {
+    if (stats.programsByDegree.length > 0) {
       // Create a horizontal bar chart for top programs
       const barChartHeight = 8;
       const barY = yPosition + 8;
-      const maxCount = Math.max(...stats.popularPrograms.map(p => p.count));
+      const maxCount = Math.max(...stats.programsByDegree.map(p => p.count));
       
       // Display top 3 programs as horizontal bars
-      stats.popularPrograms.slice(0, 3).forEach((program, index) => {
-        const barWidth = (program.count / maxCount) * (pageWidth - (margin * 2) - 60);
+      stats.programsByDegree.slice(0, 3).forEach((program, index) => {
+        const maxBarWidth = pageWidth - (margin * 2) - 90; // Increased space for percentage text
+        const barWidth = (program.count / maxCount) * maxBarWidth;
         const barX = margin + 50;
         const currentY = barY + (index * 8);
         
@@ -295,16 +299,16 @@ export const exportStatisticsToPDF = async (
         
         // Bar background
         pdf.setFillColor(230, 230, 230);
-        pdf.rect(barX, currentY, pageWidth - (margin * 2) - 55, 4, 'F');
+        pdf.rect(barX, currentY, maxBarWidth, 4, 'F');
         
         // Bar fill
         pdf.setFillColor(...colors.primary);
         pdf.rect(barX, currentY, barWidth, 4, 'F');
         
-        // Count and percentage
+        // Count and percentage - positioned after the background bar
         pdf.setFontSize(7);
         pdf.setTextColor(...colors.textLight);
-        pdf.text(`${program.count} (${program.percentage}%)`, barX + barWidth + 2, currentY + 2);
+        pdf.text(`${program.count} (${program.percentage}%)`, barX + maxBarWidth + 3, currentY + 2);
       });
     }
     
@@ -313,6 +317,7 @@ export const exportStatisticsToPDF = async (
     // Charts Section - Two columns
     const chartCardWidth = (pageWidth - (margin * 2) - 10) / 2;
     const chartCardHeight = 80;
+    const footerHeight = 15;
 
     // Feedback Distribution Chart (Left)
     const feedbackY = yPosition;
@@ -368,39 +373,53 @@ export const exportStatisticsToPDF = async (
     if (studentTypeChart) {
       pdf.addImage(studentTypeChart, 'PNG', chart2X + 5, yPosition + 10, chartCardWidth - 10, 65);
     } else {
-      // Create a simple pie chart
+      // Fallback: Display text-based data
       const centerX = chart2X + chartCardWidth / 2;
-      const centerY = yPosition + 40;
-      const radius = 25;
+      const centerY = yPosition + 35;
       
-      // Calculate angles
-      const total = stats.lpuStudents + stats.nonLpuStudents;
-      const lpuAngle = (stats.lpuStudents / total) * 360;
-      
-      // Draw LPU segment
-      pdf.setFillColor(...colors.primary);
-      pdf.circle(centerX, centerY, radius, 'FD');
-      
-      // Draw non-LPU segment
-      pdf.setFillColor(...colors.accent);
-      pdf.circle(centerX, centerY, radius, 'FD');
-      
-      // Draw dividing line
-      pdf.setDrawColor(255, 255, 255);
-      pdf.setLineWidth(2);
-      const endX = centerX + radius * Math.cos((lpuAngle * Math.PI) / 180);
-      const endY = centerY - radius * Math.sin((lpuAngle * Math.PI) / 180);
-      pdf.line(centerX, centerY, endX, endY);
-      
-      // Labels
-      pdf.setFontSize(8);
+      // Title
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'bold');
       pdf.setTextColor(...colors.text);
-      pdf.text('LPU', centerX - 10, centerY - 5);
-      pdf.text(`${stats.lpuStudents} (${lpuPercentage}%)`, centerX - 20, centerY + 5);
+      pdf.text('Student Distribution', centerX, centerY - 10, 'center');
       
-      pdf.text('Non-LPU', centerX + 5, centerY - 5);
-      pdf.text(`${stats.nonLpuStudents} (${externalPercentage}%)`, centerX - 5, centerY + 15);
+      // LPU Students
+      pdf.setFontSize(9);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFillColor(220, 38, 38); // Red
+      pdf.circle(chart2X + 15, centerY + 5, 3, 'F');
+      pdf.setTextColor(...colors.text);
+      pdf.text('LPU Students:', chart2X + 22, centerY + 7);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(`${stats.lpuStudents} (${lpuPercentage}%)`, chart2X + 22, centerY + 14);
+      
+      // Non-LPU Students
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFillColor(37, 99, 235); // Blue
+      pdf.circle(chart2X + 15, centerY + 25, 3, 'F');
+      pdf.setTextColor(...colors.text);
+      pdf.text('Non-LPU Students:', chart2X + 22, centerY + 27);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(`${stats.nonLpuStudents} (${externalPercentage}%)`, chart2X + 22, centerY + 34);
+      
+      // Total
+      const total = stats.lpuStudents + stats.nonLpuStudents;
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(8);
+      pdf.setTextColor(...colors.textLight);
+      pdf.text(`Total: ${total} students`, centerX, centerY + 50, 'center');
     }
+
+    // Page 1 footer
+    pdf.setFillColor(...colors.primary);
+    pdf.rect(0, pageHeight - footerHeight, pageWidth, footerHeight, 'F');
+    
+    pdf.setFontSize(8);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setTextColor(255, 255, 255);
+    pdf.text('Thesis Repository Management System', margin, pageHeight - 10);
+    pdf.text('Page 1 of 4', pageWidth - margin - 15, pageHeight - 10);
+    pdf.text(`Generated on: ${new Date().toLocaleString()}`, pageWidth / 2 - 25, pageHeight - 10);
 
     // ===== PAGE 2 =====
     pdf.addPage();
@@ -409,30 +428,31 @@ export const exportStatisticsToPDF = async (
     yPosition = margin;
 
     // Page 2 Header
-    const headerHeight2 = 30;
     pdf.setFillColor(...colors.primary);
     pdf.rect(0, 0, pageWidth, headerHeight2, 'F');
     
     // Add subtle gradient effect
     for (let i = 0; i < 10; i++) {
       pdf.setFillColor(59 + i * 2, 130 + i * 2, 246 + i * 2, 0.1);
-      pdf.rect(0, headerHeight2 - (i * 3), pageWidth, 3, 'F');
+      pdf.rect(0, headerHeight2 - (i * 3.5), pageWidth, 3.5, 'F');
     }
     
+    // Title - centered
     pdf.setFontSize(20);
     pdf.setFont('helvetica', 'bold');
     pdf.setTextColor(255, 255, 255);
-    pdf.text('Detailed Statistics', margin, yPosition + 10);
+    pdf.text('Detailed Statistics', pageWidth / 2, 12, 'center');
     
+    // Subtitle - centered
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'normal');
     pdf.setTextColor(220, 220, 220);
-    pdf.text('In-depth analysis of thesis repository data', margin, yPosition + 20);
+    pdf.text('In-depth analysis of thesis repository data', pageWidth / 2, 19, 'center');
     
     yPosition = headerHeight2 + 15;
 
-    // Top Research Programs
-    yPosition = drawSectionHeader('Top Research Programs', margin, yPosition);
+    // Top Research Thesis Titles
+    yPosition = drawSectionHeader('Top Research Thesis Titles', margin, yPosition);
     
     const maxPrograms = Math.min(stats.popularPrograms.length, 10);
     const programCardHeight = 15 + (maxPrograms * 7);
@@ -446,9 +466,9 @@ export const exportStatisticsToPDF = async (
     pdf.setFont('helvetica', 'bold');
     pdf.setTextColor(255, 255, 255);
     pdf.text('Rank', margin + 8, yPosition + 10);
-    pdf.text('Program', margin + 20, yPosition + 10);
-    pdf.text('Submissions', pageWidth - margin - 40, yPosition + 10);
-    pdf.text('Percentage', pageWidth - margin - 15, yPosition + 10);
+    pdf.text('Thesis Title', margin + 20, yPosition + 10);
+    pdf.text('Submissions', pageWidth - margin - 48, yPosition + 10);
+    pdf.text('Percentage', pageWidth - margin - 23, yPosition + 10);
     
     // Table rows
     let programY = yPosition + 15;
@@ -465,9 +485,9 @@ export const exportStatisticsToPDF = async (
       pdf.setTextColor(...colors.text);
       pdf.text((index + 1).toString(), margin + 8, programY);
       
-      // Truncate long program names
-      const programName = program.name.length > 40 ? program.name.substring(0, 40) + '...' : program.name;
-      pdf.text(programName, margin + 20, programY);
+      // Truncate long thesis titles for PDF display
+      const thesisTitle = program.name.length > 60 ? program.name.substring(0, 60) + '...' : program.name;
+      pdf.text(thesisTitle, margin + 20, programY);
       
       pdf.text(program.count.toString(), pageWidth - margin - 40, programY);
       pdf.text(`${program.percentage}%`, pageWidth - margin - 15, programY);
@@ -480,7 +500,7 @@ export const exportStatisticsToPDF = async (
     // Campus Breakdown and Feedback Summary - side by side with reduced height
     // Calculate appropriate heights based on content
     const campusBreakdownHeight = 18 + (stats.campusData.length * (6 + 4)); // Header + bars with spacing
-    const feedbackSummaryHeight = 45; // Reduced from 70 to 45
+    const feedbackSummaryHeight = 58; // Increased to accommodate all 5 ratings
     
     // Campus Breakdown (Left)
     const campusDetailY = yPosition;
@@ -495,7 +515,7 @@ export const exportStatisticsToPDF = async (
     
     stats.campusData.forEach((campus, index) => {
       const y = campusStartY + (index * (campusBarHeight + campusBarSpacing));
-      const barWidth = (campus.value / campusMaxValue) * (chartCardWidth - 60);
+      const barWidth = (campus.value / campusMaxValue) * (chartCardWidth - 65);
       const percentage = stats.totalSubmissions > 0 
         ? ((campus.value / stats.totalSubmissions) * 100).toFixed(1)
         : '0';
@@ -508,16 +528,16 @@ export const exportStatisticsToPDF = async (
       
       // Bar background
       pdf.setFillColor(230, 230, 230);
-      pdf.rect(margin + 40, y, chartCardWidth - 60, campusBarHeight, 'F');
+      pdf.rect(margin + 40, y, chartCardWidth - 65, campusBarHeight, 'F');
       
       // Bar fill
       pdf.setFillColor(...colors.primary);
       pdf.rect(margin + 40, y, barWidth, campusBarHeight, 'F');
       
-      // Value and percentage
+      // Value and percentage - aligned in fixed column position
       pdf.setFontSize(7);
       pdf.setTextColor(...colors.textLight);
-      pdf.text(`${campus.value} (${percentage}%)`, margin + 40 + barWidth + 2, y + 4);
+      pdf.text(`${campus.value} (${percentage}%)`, margin + 40 + (chartCardWidth - 65) + 3, y + 4);
     });
 
     // Feedback Summary (Right) - Fixed layout with reduced height
@@ -533,35 +553,41 @@ export const exportStatisticsToPDF = async (
     pdf.text('Average Rating:', chart2X + 5, ratingY);
     
     // Star rating visualization with yellow stars - Smaller and better positioned
-    const starSize = 4;
-    const starY = ratingY - 2;
-    const starStartX = chart2X + 40;
-    const starSpacing = 4.5;
+    const starSize = 3;
+    const starY = ratingY - 1.5;
+    const starStartX = chart2X + 35;
+    const starSpacing = 6.5;
     
     // Draw filled stars
     for (let i = 0; i < Math.floor(stats.feedbackStats.averageRating); i++) {
       pdf.setFillColor(...colors.accent); // Yellow color
-      drawStar(pdf, starStartX + (i * (starSize + starSpacing)), starY, starSize);
+      drawStar(pdf, starStartX + (i * starSpacing), starY, starSize);
     }
     
     // Draw half star if needed
     if (stats.feedbackStats.averageRating % 1 >= 0.5) {
+      const halfStarX = starStartX + (Math.floor(stats.feedbackStats.averageRating) * starSpacing);
+      // Draw outline of full star first
+      pdf.setDrawColor(...colors.textLight);
+      pdf.setLineWidth(0.5);
+      drawStar(pdf, halfStarX, starY, starSize, false, true);
+      // Then draw filled half on top
       pdf.setFillColor(...colors.accent); // Yellow color
-      drawStar(pdf, starStartX + (Math.floor(stats.feedbackStats.averageRating) * (starSize + starSpacing)), starY, starSize, true);
+      drawStar(pdf, halfStarX, starY, starSize, true);
     }
     
     // Draw empty stars
     for (let i = Math.ceil(stats.feedbackStats.averageRating); i < 5; i++) {
       pdf.setDrawColor(...colors.textLight);
       pdf.setLineWidth(0.5);
-      drawStar(pdf, starStartX + (i * (starSize + starSpacing)), starY, starSize, false, true);
+      drawStar(pdf, starStartX + (i * starSpacing), starY, starSize, false, true);
     }
     
     // Rating value - Smaller font
     pdf.setFontSize(9);
     pdf.setFont('helvetica', 'bold');
     pdf.setTextColor(...colors.text);
-    pdf.text(`${stats.feedbackStats.averageRating}/5`, starStartX + 30, ratingY);
+    pdf.text(`${stats.feedbackStats.averageRating}/5`, starStartX + 34, ratingY);
     
     // Total responses - Smaller font and adjusted position
     pdf.setFontSize(7);
@@ -578,11 +604,11 @@ export const exportStatisticsToPDF = async (
     const sortedRatings = [...stats.feedbackStats.ratingDistribution].sort((a, b) => b.rating - a.rating);
     let ratingBreakdownY = ratingY + 22;
     
-    // Calculate how many ratings can fit
-    const maxRatingsToShow = Math.min(sortedRatings.length, 4);
+    // Calculate how many ratings can fit - show all available ratings
+    const maxRatingsToShow = sortedRatings.length;
     
     sortedRatings.slice(0, maxRatingsToShow).forEach((rating, index) => {
-      if (rating.count > 0 && ratingBreakdownY < yPosition + feedbackSummaryHeight - 5) {
+      if (rating.count > 0 && ratingBreakdownY < yPosition + feedbackSummaryHeight - 2) {
         const percentage = stats.feedbackStats.totalFeedback > 0 
           ? ((rating.count / stats.feedbackStats.totalFeedback) * 100).toFixed(1)
           : '0';
@@ -591,17 +617,17 @@ export const exportStatisticsToPDF = async (
         const miniStarSize = 2.5;
         const miniStarY = ratingBreakdownY - 1.5;
         const miniStarStartX = chart2X + 8;
-        const miniStarSpacing = 3;
+        const miniStarSpacing = 3.8;
         
         for (let i = 0; i < rating.rating; i++) {
           pdf.setFillColor(...colors.accent); // Yellow color
-          drawStar(pdf, miniStarStartX + (i * (miniStarSize + miniStarSpacing)), miniStarY, miniStarSize);
+          drawStar(pdf, miniStarStartX + (i * miniStarSpacing), miniStarY, miniStarSize);
         }
         
         for (let i = rating.rating; i < 5; i++) {
           pdf.setDrawColor(...colors.textLight);
           pdf.setLineWidth(0.3);
-          drawStar(pdf, miniStarStartX + (i * (miniStarSize + miniStarSpacing)), miniStarY, miniStarSize, false, true);
+          drawStar(pdf, miniStarStartX + (i * miniStarSpacing), miniStarY, miniStarSize, false, true);
         }
         
         // Bar chart for rating distribution - Smaller
@@ -609,15 +635,15 @@ export const exportStatisticsToPDF = async (
         const barY = ratingBreakdownY - 1.5;
         
         pdf.setFillColor(230, 230, 230);
-        pdf.rect(chart2X + 25, barY, 35, 2, 'F');
+        pdf.rect(chart2X + 30, barY, 35, 2, 'F');
         
         pdf.setFillColor(...colors.primary);
-        pdf.rect(chart2X + 25, barY, barWidth, 2, 'F');
+        pdf.rect(chart2X + 30, barY, barWidth, 2, 'F');
         
         // Count and percentage - Smaller font
         pdf.setFontSize(6);
         pdf.setTextColor(...colors.textLight);
-        pdf.text(`${rating.count} (${percentage}%)`, chart2X + 62, ratingBreakdownY);
+        pdf.text(`${rating.count} (${percentage}%)`, chart2X + 67, ratingBreakdownY);
         
         ratingBreakdownY += 5;
       }
@@ -625,6 +651,17 @@ export const exportStatisticsToPDF = async (
 
     // Update yPosition to the higher of the two sections
     yPosition = Math.max(campusDetailY + campusBreakdownHeight, campusDetailY + feedbackSummaryHeight) + 15;
+
+    // Page 2 footer
+    pdf.setFillColor(...colors.primary);
+    pdf.rect(0, pageHeight - footerHeight, pageWidth, footerHeight, 'F');
+    
+    pdf.setFontSize(8);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setTextColor(255, 255, 255);
+    pdf.text('Thesis Repository Management System', margin, pageHeight - 10);
+    pdf.text('Page 2 of 4', pageWidth - margin - 15, pageHeight - 10);
+    pdf.text(`Generated on: ${new Date().toLocaleString()}`, pageWidth / 2 - 25, pageHeight - 10);
 
     // ===== PAGE 3 =====
     pdf.addPage();
@@ -639,18 +676,20 @@ export const exportStatisticsToPDF = async (
     // Add subtle gradient effect
     for (let i = 0; i < 10; i++) {
       pdf.setFillColor(59 + i * 2, 130 + i * 2, 246 + i * 2, 0.1);
-      pdf.rect(0, headerHeight2 - (i * 3), pageWidth, 3, 'F');
+      pdf.rect(0, headerHeight2 - (i * 3.5), pageWidth, 3.5, 'F');
     }
     
+    // Title - centered
     pdf.setFontSize(20);
     pdf.setFont('helvetica', 'bold');
     pdf.setTextColor(255, 255, 255);
-    pdf.text('Submission Trends & Feedback', margin, yPosition + 10);
+    pdf.text('Submission Trends & Feedback', pageWidth / 2, 12, 'center');
     
+    // Subtitle - centered
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'normal');
     pdf.setTextColor(220, 220, 220);
-    pdf.text('Monthly submission patterns and user comments', margin, yPosition + 20);
+    pdf.text('Monthly submission patterns and user comments', pageWidth / 2, 19, 'center');
     
     yPosition = headerHeight2 + 15;
 
@@ -731,78 +770,113 @@ export const exportStatisticsToPDF = async (
 
     yPosition += trendChartHeight + 15;
 
-    // Recent User Comments (moved from Page 2) - Updated layout to match image
-    const commentsWithText = stats.feedbackStats.recentFeedback.filter(f => f.comments && f.comments.trim() !== '').slice(0, 4);
-    if (commentsWithText.length > 0) {
+    // Recent User Comments - Two-column layout for 10 comments
+    const recentComments = stats.feedbackStats.recentFeedback.slice(0, 10);
+    if (recentComments.length > 0) {
       yPosition = drawSectionHeader('Recent User Comments', margin, yPosition);
       
-      // Calculate the maximum height for comments to fit on the page
-      const availableHeight = pageHeight - yPosition - margin - 15; // 15 for footer
-      const maxCommentsHeight = Math.min(availableHeight, 15 + (commentsWithText.length * 25));
+      // Calculate the height needed - based on 5 rows (max in one column)
+      const commentSpacing = 18; // Space per comment
+      const commentsPerColumn = 5;
+      const maxRows = Math.min(commentsPerColumn, recentComments.length);
+      const totalCommentsHeight = 8 + (maxRows * commentSpacing);
       
-      drawCard(margin, yPosition, pageWidth - (margin * 2), maxCommentsHeight);
+      drawCard(margin, yPosition, pageWidth - (margin * 2), totalCommentsHeight);
       
-      let commentY = yPosition + 10;
+      // Calculate column widths and positions
+      const cardWidth = pageWidth - (margin * 2);
+      const columnSpacing = 10; // Space between columns
+      const columnWidth = (cardWidth - columnSpacing) / 2;
+      const leftColumnX = margin + 3;
+      const rightColumnX = margin + columnWidth + columnSpacing - 3;
       
-      commentsWithText.forEach((feedback, index) => {
-        // Individual comment card with spacing
-        const commentCardHeight = 22;
-        const commentCardY = commentY + (index * commentCardHeight);
+      // Draw vertical divider between columns
+      const dividerX = margin + (cardWidth / 2);
+      pdf.setDrawColor(220, 220, 220);
+      pdf.setLineWidth(0.5);
+      pdf.line(dividerX, yPosition + 5, dividerX, yPosition + totalCommentsHeight - 5);
+      
+      recentComments.forEach((feedback, index) => {
+        // Determine which column and row
+        const isLeftColumn = index < commentsPerColumn;
+        const rowIndex = index % commentsPerColumn;
+        const baseX = isLeftColumn ? leftColumnX : rightColumnX;
+        const currentY = yPosition + 8 + (rowIndex * commentSpacing);
         
-        // Blue header bar spanning full width
-        pdf.setFillColor(...colors.primary);
-        pdf.rect(margin + 5, commentCardY, pageWidth - (margin * 2) - 10, 6, 'F');
+        // Yellow accent bar on the left (matching web design)
+        pdf.setFillColor(...colors.accent); // Yellow color
+        pdf.rect(baseX, currentY, 3, 15, 'F');
         
-        const date = new Date(feedback.created_at).toLocaleDateString('en-US', { 
-          year: 'numeric', 
-          month: 'short', 
-          day: 'numeric' 
-        });
+        // Stars and date on the first line
+        const starSize = 2;
+        const starStartX = baseX + 7;
+        const starY = currentY + 2;
+        const starSpacing = 3;
         
-        // Date and rating on the left side of header
-        pdf.setFontSize(7);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setTextColor(255, 255, 255);
-        pdf.text(`${date} - Rating: ${feedback.rating}/5`, margin + 8, commentCardY + 4);
-        
-        // Stars on the right side of header
-        const starSize = 3;
-        const starY = commentCardY + 1.5;
-        const starStartX = pageWidth - margin - 25; // Position stars on the right
-        const starSpacing = 3.5;
-        
+        // Draw stars
         for (let i = 0; i < feedback.rating; i++) {
           pdf.setFillColor(...colors.accent); // Yellow color
-          drawStar(pdf, starStartX + (i * (starSize + starSpacing)), starY, starSize);
+          drawStar(pdf, starStartX + (i * starSpacing), starY, starSize);
         }
         
         for (let i = feedback.rating; i < 5; i++) {
           pdf.setDrawColor(...colors.textLight);
           pdf.setLineWidth(0.3);
-          drawStar(pdf, starStartX + (i * (starSize + starSpacing)), starY, starSize, false, true);
+          drawStar(pdf, starStartX + (i * starSpacing), starY, starSize, false, true);
         }
         
-        // Comment content below header
-        pdf.setFontSize(8);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(...colors.text);
-        const comment = feedback.comments || '';
-        
-        // Add thesis title if available
-        let commentText = `"${comment}"`;
-        if (feedback.thesis_title) {
-          const title = feedback.thesis_title.length > 50 
-            ? feedback.thesis_title.substring(0, 50) + '...' 
-            : feedback.thesis_title;
-          commentText = `Thesis: ${title}\n${commentText}`;
-        }
-        
-        const lines = pdf.splitTextToSize(commentText, pageWidth - (margin * 2) - 14);
-        lines.slice(0, 2).forEach((line: string, lineIndex: number) => {
-          pdf.text(line, margin + 8, commentCardY + 11 + (lineIndex * 5));
+        // Date next to stars
+        const date = new Date(feedback.created_at).toLocaleDateString('en-US', { 
+          year: 'numeric', 
+          month: 'short', 
+          day: 'numeric' 
         });
+        pdf.setFontSize(7);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(...colors.textLight);
+        pdf.text(date, starStartX + 20, currentY + 3);
+        
+        // Comment text (if available)
+        if (feedback.comments) {
+          pdf.setFontSize(7);
+          pdf.setFont('helvetica', 'normal');
+          pdf.setTextColor(...colors.text);
+          const comment = feedback.comments;
+          const maxCommentWidth = columnWidth - 15;
+          const lines = pdf.splitTextToSize(comment, maxCommentWidth);
+          pdf.text(lines[0] || '', starStartX, currentY + 8);
+        }
+        
+        // Thesis title at the bottom - display full title with wrapping
+        if (feedback.thesis_title) {
+          pdf.setFontSize(6.5);
+          pdf.setFont('helvetica', 'normal');
+          pdf.setTextColor(...colors.textLight);
+          const title = `Thesis: ${feedback.thesis_title}`;
+          const maxTitleWidth = columnWidth - 15;
+          const titleLines = pdf.splitTextToSize(title, maxTitleWidth);
+          // Display first line at the standard position
+          if (titleLines.length > 0) {
+            pdf.text(titleLines[0], starStartX, currentY + 13);
+          }
+          // Display second line if it exists
+          if (titleLines.length > 1) {
+            pdf.text(titleLines[1], starStartX, currentY + 16);
+          }
+        }
       });
     }
+
+    // Page 3 footer
+    pdf.setFillColor(...colors.primary);
+    pdf.rect(0, pageHeight - footerHeight, pageWidth, footerHeight, 'F');
+    
+    pdf.setFontSize(8);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setTextColor(255, 255, 255);
+    pdf.text('Thesis Repository Management System', margin, pageHeight - 10);
+    pdf.text('Page 3 of 4', pageWidth - margin - 15, pageHeight - 10);
+    pdf.text(`Generated on: ${new Date().toLocaleString()}`, pageWidth / 2 - 25, pageHeight - 10);
 
     // ===== PAGE 4 =====
     pdf.addPage();
@@ -817,27 +891,30 @@ export const exportStatisticsToPDF = async (
     // Add subtle gradient effect
     for (let i = 0; i < 10; i++) {
       pdf.setFillColor(59 + i * 2, 130 + i * 2, 246 + i * 2, 0.1);
-      pdf.rect(0, headerHeight2 - (i * 3), pageWidth, 3, 'F');
+      pdf.rect(0, headerHeight2 - (i * 3.5), pageWidth, 3.5, 'F');
     }
     
+    // Title - centered
     pdf.setFontSize(20);
     pdf.setFont('helvetica', 'bold');
     pdf.setTextColor(255, 255, 255);
-    pdf.text('Campus Distribution & Summary', margin, yPosition + 10);
+    pdf.text('Campus Distribution & Summary', pageWidth / 2, 12, 'center');
     
+    // Subtitle - centered
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'normal');
     pdf.setTextColor(220, 220, 220);
-    pdf.text('Campus distribution data and key metrics summary', margin, yPosition + 20);
+    pdf.text('Campus distribution data and key metrics summary', pageWidth / 2, 19, 'center');
     
     yPosition = headerHeight2 + 15;
 
     // Campus Distribution Chart (Full Width) - moved from Page 3
     yPosition = drawSectionHeader('Campus Distribution', margin, yPosition);
-    drawCard(margin, yPosition, pageWidth - (margin * 2), chartCardHeight);
+    const campusChartHeight = 100; // Increased height to prevent distortion
+    drawCard(margin, yPosition, pageWidth - (margin * 2), campusChartHeight);
     
     if (campusDistChart) {
-      pdf.addImage(campusDistChart, 'PNG', margin + 5, yPosition + 10, pageWidth - (margin * 2) - 10, 65);
+      pdf.addImage(campusDistChart, 'PNG', margin + 5, yPosition + 10, pageWidth - (margin * 2) - 10, 85);
     } else {
       // Create a simple horizontal bar chart
       const barHeight = 8;
@@ -873,7 +950,7 @@ export const exportStatisticsToPDF = async (
       });
     }
 
-    yPosition += chartCardHeight + 15;
+    yPosition += campusChartHeight + 15;
 
     // Quick Summary Section (moved from Page 3)
     yPosition = drawSectionHeader('Quick Summary', margin, yPosition);
@@ -907,9 +984,9 @@ export const exportStatisticsToPDF = async (
       const x = isLeftColumn ? leftColumnX : rightColumnX;
       const y = yPosition + 10 + ((index % 3) * 10);
       
-      // Icon placeholder (circle)
+      // Icon placeholder (circle) - vertically centered with text block
       pdf.setFillColor(...colors.primary);
-      pdf.circle(x + 3, y - 2, 2, 'F');
+      pdf.circle(x + 3, y + 1.5, 2, 'F');
       
       // Label
       pdf.setFontSize(8);
@@ -922,47 +999,7 @@ export const exportStatisticsToPDF = async (
       pdf.text(item.value, x + 8, y + 5);
     });
 
-    // Footer on all pages
-    const footerHeight = 15;
-    
-    // Page 1 footer
-    pdf.setPage(1);
-    pdf.setFillColor(...colors.primary);
-    pdf.rect(0, pageHeight - footerHeight, pageWidth, footerHeight, 'F');
-    
-    pdf.setFontSize(8);
-    pdf.setFont('helvetica', 'normal');
-    pdf.setTextColor(255, 255, 255);
-    pdf.text('Thesis Repository Management System', margin, pageHeight - 10);
-    pdf.text('Page 1 of 4', pageWidth - margin - 15, pageHeight - 10);
-    pdf.text(`Generated on: ${new Date().toLocaleString()}`, pageWidth / 2 - 25, pageHeight - 10);
-    
-    // Page 2 footer
-    pdf.setPage(2);
-    pdf.setFillColor(...colors.primary);
-    pdf.rect(0, pageHeight - footerHeight, pageWidth, footerHeight, 'F');
-    
-    pdf.setFontSize(8);
-    pdf.setFont('helvetica', 'normal');
-    pdf.setTextColor(255, 255, 255);
-    pdf.text('Thesis Repository Management System', margin, pageHeight - 10);
-    pdf.text('Page 2 of 4', pageWidth - margin - 15, pageHeight - 10);
-    pdf.text(`Generated on: ${new Date().toLocaleString()}`, pageWidth / 2 - 25, pageHeight - 10);
-    
-    // Page 3 footer
-    pdf.setPage(3);
-    pdf.setFillColor(...colors.primary);
-    pdf.rect(0, pageHeight - footerHeight, pageWidth, footerHeight, 'F');
-    
-    pdf.setFontSize(8);
-    pdf.setFont('helvetica', 'normal');
-    pdf.setTextColor(255, 255, 255);
-    pdf.text('Thesis Repository Management System', margin, pageHeight - 10);
-    pdf.text('Page 3 of 4', pageWidth - margin - 15, pageHeight - 10);
-    pdf.text(`Generated on: ${new Date().toLocaleString()}`, pageWidth / 2 - 25, pageHeight - 10);
-    
     // Page 4 footer
-    pdf.setPage(4);
     pdf.setFillColor(...colors.primary);
     pdf.rect(0, pageHeight - footerHeight, pageWidth, footerHeight, 'F');
     
@@ -1000,12 +1037,6 @@ function drawStar(pdf: any, cx: number, cy: number, size: number, half = false, 
     const x = cx + Math.cos(rot) * radius;
     const y = cy + Math.sin(rot) * radius;
     
-    // For half star, only draw the right half
-    if (half && x < cx) {
-      rot += step;
-      continue;
-    }
-    
     points.push({x, y});
     rot += step;
   }
@@ -1027,9 +1058,9 @@ function drawStar(pdf: any, cx: number, cy: number, size: number, half = false, 
             'F'
           );
         } else {
-          // For half star, only fill if the triangle is on the right side
+          // For half star, only fill if the triangle is on the left side
           const midX = (points[i].x + points[nextIndex].x) / 2;
-          if (midX >= cx) {
+          if (midX <= cx) {
             pdf.triangle(
               cx, cy,
               points[i].x, points[i].y,

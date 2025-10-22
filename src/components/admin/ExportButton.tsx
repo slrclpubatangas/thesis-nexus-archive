@@ -14,6 +14,7 @@ interface StatsData {
   campusData: Array<{ name: string; value: number }>;
   monthlyData: Array<{ month: string; submissions: number }>;
   popularPrograms: Array<{ name: string; count: number; percentage: number }>;
+  programsByDegree: Array<{ name: string; count: number; percentage: number }>;
   feedbackStats: {
     totalFeedback: number;
     averageRating: number;

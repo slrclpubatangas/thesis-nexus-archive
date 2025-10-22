@@ -19,6 +19,7 @@ interface StatsData {
   campusData: Array<{ name: string; value: number }>;
   monthlyData: Array<{ month: string; submissions: number }>;
   popularPrograms: Array<{ name: string; count: number; percentage: number }>;
+  programsByDegree: Array<{ name: string; count: number; percentage: number }>; // For UI display
   feedbackStats: {
     totalFeedback: number;
     averageRating: number;
@@ -43,6 +44,7 @@ const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
     campusData: [],
     monthlyData: [],
     popularPrograms: [],
+    programsByDegree: [],
     feedbackStats: {
       totalFeedback: 0,
       averageRating: 0,
@@ -130,7 +132,24 @@ const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
         .map(([month, submissions]) => ({ month, submissions }))
         .slice(-6);
 
-      // Calculate popular programs
+      // Calculate popular thesis titles (for PDF export)
+      const thesisTitleCount = submissions?.reduce((acc, submission) => {
+        if (submission.thesis_title) {
+          acc[submission.thesis_title] = (acc[submission.thesis_title] || 0) + 1;
+        }
+        return acc;
+      }, {} as Record<string, number>) || {};
+
+      const popularPrograms = Object.entries(thesisTitleCount)
+        .map(([name, count]) => ({
+          name,
+          count,
+          percentage: Math.round((count / totalSubmissions) * 100)
+        }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10); // Top 10 popular thesis titles
+
+      // Calculate programs by degree (for UI display)
       const programCount = submissions?.reduce((acc, submission) => {
         if (submission.program) {
           acc[submission.program] = (acc[submission.program] || 0) + 1;
@@ -138,14 +157,14 @@ const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
         return acc;
       }, {} as Record<string, number>) || {};
 
-      const popularPrograms = Object.entries(programCount)
+      const programsByDegree = Object.entries(programCount)
         .map(([name, count]) => ({
           name,
           count,
           percentage: Math.round((count / totalSubmissions) * 100)
         }))
         .sort((a, b) => b.count - a.count)
-        .slice(0, 10); // Top 10 popular programs
+        .slice(0, 10); // Top 10 programs
 
       // Fetch feedback statistics
       const { data: feedback, error: feedbackError } = await supabase
@@ -169,7 +188,7 @@ const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
           rating,
           count: feedback?.filter(f => f.rating === rating).length || 0
         })),
-        recentFeedback: (feedback?.slice(0, 5) || []).map(f => ({
+        recentFeedback: (feedback?.slice(0, 10) || []).map(f => ({
           id: f.id,
           rating: f.rating,
           comments: f.comments,
@@ -199,6 +218,7 @@ const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
         campusData,
         monthlyData,
         popularPrograms,
+        programsByDegree,
         feedbackStats
       });
     } catch (error) {
@@ -408,17 +428,17 @@ const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
           </div>
         </div>
 
-        {/* Right side - Popular Research Topics */}
+        {/* Right side - Popular Researchers by Program */}
         <div className="card-hover p-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Popular Research Topics</h3>
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">Popular Researchers by Program</h3>
           <div className="space-y-4">
-            {stats.popularPrograms.length === 0 ? (
+            {stats.programsByDegree.length === 0 ? (
               <div className="text-center text-gray-500 py-8">
-                <BookOpen className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                <School className="h-8 w-8 mx-auto mb-2 text-gray-400" />
                 <p className="text-sm">No program data available</p>
               </div>
             ) : (
-              stats.popularPrograms.slice(0, 5).map((program, index) => {
+              stats.programsByDegree.slice(0, 5).map((program, index) => {
                 const colors = [
                   { bg: 'bg-blue-500', text: 'text-blue-600' },
                   { bg: 'bg-green-500', text: 'text-green-600' },
@@ -429,11 +449,11 @@ const StatisticsTab: React.FC<StatisticsTabProps> = ({ userRole }) => {
                 const color = colors[index % colors.length];
                 return (
                   <div key={program.name} className="space-y-2">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2">
                       <span className="text-sm font-medium text-gray-700" title={program.name}>
                         {program.name}
                       </span>
-                      <span className="text-sm font-bold text-gray-800">{program.percentage}%</span>
+                      <span className="text-sm font-bold text-gray-800 whitespace-nowrap">{program.count} ({program.percentage}%)</span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div
