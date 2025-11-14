@@ -108,7 +108,7 @@ const BulkEditStudentModal: React.FC<BulkEditStudentModalProps> = ({
           <div className="flex items-center space-x-2">
             <Edit className="h-6 w-6 text-red-600" />
             <h3 className="text-xl font-semibold text-gray-800">
-              Bulk Edit Student Records
+              Bulk Edit Student Data
             </h3>
           </div>
           <button

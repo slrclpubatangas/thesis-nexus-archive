@@ -38,7 +38,7 @@ const EditStudentModal: React.FC<Props> = ({ isOpen, onClose, student, onSave })
     <Dialog open={isOpen} onOpenChange={(open) => (!open ? onClose() : null)}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Edit Student</DialogTitle>
+          <DialogTitle>Edit Student Data</DialogTitle>
         </DialogHeader>
         {form ? (
           <form onSubmit={handleSubmit} className="space-y-4">

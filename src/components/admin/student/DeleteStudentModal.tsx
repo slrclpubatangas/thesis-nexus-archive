@@ -42,10 +42,10 @@ const DeleteStudentModal: React.FC<Props> = ({ isOpen, onClose, student, onConfi
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-red-600">
             <AlertTriangle className="h-5 w-5" />
-            Delete Student Record
+            Delete Student Data
           </DialogTitle>
           <DialogDescription className="mt-3 text-gray-600">
-            This action cannot be undone. This will permanently delete the student record from the database.
+            This action cannot be undone. This will permanently delete the student data from the database.
           </DialogDescription>
         </DialogHeader>
 
@@ -75,7 +75,7 @@ const DeleteStudentModal: React.FC<Props> = ({ isOpen, onClose, student, onConfi
 
           <div className="bg-red-50 border border-red-200 p-4 rounded-lg">
             <p className="text-sm text-red-800">
-              Are you sure you want to delete this student record? This action is permanent and cannot be reversed.
+              Are you sure you want to delete this student data? This action is permanent and cannot be reversed.
             </p>
           </div>
         </div>
