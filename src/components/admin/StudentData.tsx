@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Plus, Search, Upload, Filter, Trash2 } from 'lucide-react';
+import { Plus, Search, Upload, Filter, Trash2, Edit } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
@@ -8,6 +8,7 @@ import StudentDataTable from './student/StudentDataTable';
 import EditStudentModal from './student/EditStudentModal';
 import DeleteStudentModal from './student/DeleteStudentModal';
 import AddStudentModal from './student/AddStudentModal';
+import BulkEditStudentModal from './student/BulkEditStudentModal';
 
 export interface StudentRecord {
   student_no: string; // Primary Key
@@ -104,6 +105,7 @@ const StudentData: React.FC = () => {
   const [deleting, setDeleting] = useState<StudentRecord | null>(null);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isBulkEditOpen, setIsBulkEditOpen] = useState(false);
 
   const onEdit = (student: StudentRecord) => {
     setEditing(student);
@@ -262,12 +264,54 @@ const StudentData: React.FC = () => {
     }
   };
 
+  const handleBulkEdit = async (updates: {
+    full_name?: string;
+    course_section?: string;
+    email?: string;
+    school_year?: string;
+  }) => {
+    if (selectedStudentIds.length === 0) return;
+
+    try {
+      await mutateWithAuth(
+        supabase
+          .from('students')
+          .update(updates)
+          .in('student_no', selectedStudentIds),
+        {
+          onError: (error) => {
+            console.error('Error updating students:', error);
+            toast({
+              title: "Error",
+              description: "Failed to update student records.",
+              variant: "destructive",
+            });
+            throw error; // Re-throw to let modal handle loading state
+          },
+        }
+      );
+
+      const updatedFields = Object.keys(updates).join(', ');
+      toast({
+        title: "Success",
+        description: `Successfully updated ${updatedFields} for ${selectedStudentIds.length} student record(s).`,
+      });
+
+      queryClient.invalidateQueries({ queryKey: ['student-data'] });
+      setSelectedStudentIds([]);
+      setIsBulkEditOpen(false);
+    } catch (error) {
+      console.error('Bulk edit operation failed:', error);
+      throw error; // Re-throw for modal error handling
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Student Data Management</h2>
-          <p className="text-gray-600">Upload and manage student records</p>
+          <p className="text-gray-600">Upload and manage LPU Student Data</p>
         </div>
         <div className="flex space-x-3">
           <button
@@ -347,13 +391,22 @@ const StudentData: React.FC = () => {
               <span className="text-sm font-medium text-blue-900">
                 {selectedStudentIds.length} item(s) selected
               </span>
-              <button
-                onClick={handleBulkDelete}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center space-x-2"
-              >
-                <Trash2 size={16} />
-                <span>Delete Selected</span>
-              </button>
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={() => setIsBulkEditOpen(true)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+                >
+                  <Edit size={16} />
+                  <span>Edit Selected</span>
+                </button>
+                <button
+                  onClick={handleBulkDelete}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center space-x-2"
+                >
+                  <Trash2 size={16} />
+                  <span>Delete Selected</span>
+                </button>
+              </div>
             </div>
           )}
 
@@ -388,6 +441,13 @@ const StudentData: React.FC = () => {
             isOpen={isAddOpen}
             onClose={() => setIsAddOpen(false)}
             onSave={handleAddStudent}
+          />
+
+          <BulkEditStudentModal
+            isOpen={isBulkEditOpen}
+            onClose={() => setIsBulkEditOpen(false)}
+            selectedCount={selectedStudentIds.length}
+            onSave={handleBulkEdit}
           />
         </div>
       )}

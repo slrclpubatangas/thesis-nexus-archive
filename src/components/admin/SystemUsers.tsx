@@ -10,7 +10,7 @@ interface SystemUser {
   user_id: string;
   name: string;
   email: string;
-  role: 'Admin' | 'Viewer';
+  role: 'Admin' | 'Reader';
   status: 'Active' | 'Inactive';
   last_login: string | null;
   created_at: string;
@@ -29,7 +29,7 @@ const SystemUsers = () => {
   const [newUser, setNewUser] = useState({
     name: '',
     email: '',
-    role: 'Viewer' as 'Admin' | 'Viewer',
+    role: 'Reader' as 'Admin' | 'Reader',
     status: 'Active' as 'Active' | 'Inactive'
   });
   const { toast } = useToast();
@@ -186,6 +186,10 @@ const SystemUsers = () => {
     }
 
     try {
+      // Debug: Log the role value before sending to database
+      console.log('Adding user with role:', newUser.role);
+      console.log('Full newUser object:', newUser);
+
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: newUser.email,
         password: 'TempPassword123!',
@@ -215,15 +219,19 @@ const SystemUsers = () => {
         return;
       }
 
+      const userPayload = {
+        user_id: authData.user.id,
+        name: newUser.name,
+        email: newUser.email,
+        role: newUser.role,
+        status: newUser.status
+      };
+
+      console.log('Inserting to database with payload:', userPayload);
+
       const { data, error } = await supabase
         .from('system_users')
-        .insert([{
-          user_id: authData.user.id,
-          name: newUser.name,
-          email: newUser.email,
-          role: newUser.role,
-          status: newUser.status
-        }])
+        .insert([userPayload])
         .select();
 
       if (error) {
@@ -243,7 +251,7 @@ const SystemUsers = () => {
       });
 
       setShowAddUser(false);
-      setNewUser({ name: '', email: '', role: 'Viewer', status: 'Active' });
+      setNewUser({ name: '', email: '', role: 'Reader', status: 'Active' });
       fetchUsers();
     } catch (error) {
       console.error('Error adding user:', error);
@@ -461,10 +469,10 @@ const SystemUsers = () => {
               </label>
               <select
                 value={newUser.role}
-                onChange={(e) => setNewUser({...newUser, role: e.target.value as 'Admin' | 'Viewer'})}
+                onChange={(e) => setNewUser({...newUser, role: e.target.value as 'Admin' | 'Reader'})}
                 className="select-field"
               >
-                <option value="Viewer">Viewer</option>
+                <option value="Reader">Viewer</option>
                 <option value="Admin">Admin</option>
               </select>
             </div>

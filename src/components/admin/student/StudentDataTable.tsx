@@ -58,7 +58,7 @@ const StudentDataTable: React.FC<Props> = ({ students, isLoading, sortKey, sortD
               </TableHead>
               <TableHead className="w-32">Student#</TableHead>
               <TableHead className="w-56">Full Name</TableHead>
-              <TableHead className="w-40">Course & Section</TableHead>
+              <TableHead className="w-40">Course</TableHead>
               <TableHead className="w-64">Email</TableHead>
               <TableHead className="w-32">School Year</TableHead>
               <TableHead className="w-24">Actions</TableHead>

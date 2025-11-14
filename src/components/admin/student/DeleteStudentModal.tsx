@@ -60,7 +60,7 @@ const DeleteStudentModal: React.FC<Props> = ({ isOpen, onClose, student, onConfi
               <span className="text-gray-900">{student.full_name}</span>
             </div>
             <div className="text-sm">
-              <span className="font-medium text-gray-700">Course & Section:</span>{' '}
+              <span className="font-medium text-gray-700">Course:</span>{' '}
               <span className="text-gray-900">{student.course_section}</span>
             </div>
             <div className="text-sm">

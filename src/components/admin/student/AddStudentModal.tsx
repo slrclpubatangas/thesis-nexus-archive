@@ -83,7 +83,7 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({
     }
 
     if (!formData.course_section.trim()) {
-      alert('Course and Section is required.');
+      alert('Course is required.');
       return;
     }
 
@@ -162,14 +162,14 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="course_section">Course and Section *</Label>
+            <Label htmlFor="course_section">Course *</Label>
             <Input
               id="course_section"
               name="course_section"
               value={formData.course_section}
               onChange={handleInputChange}
               required
-              placeholder="Enter course and section (e.g., BSIT-3A)"
+              placeholder="Enter course (e.g., BSIT-3A)"
               disabled={isSubmitting}
             />
           </div>
