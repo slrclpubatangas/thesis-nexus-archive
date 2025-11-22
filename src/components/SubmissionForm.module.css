@@ -1,0 +1,234 @@
+/* Book page-turning animation styles for SubmissionForm */
+
+/* Main book container */
+.bookContainer {
+  width: 95%;
+  max-width: 1400px;
+  height: 600px;
+  position: relative;
+  margin: 0 auto;
+  perspective: 1500px;
+  -webkit-perspective: 1500px;
+}
+
+/* Book wrapper */
+.bookWrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
+}
+
+/* Form pages */
+.formPage {
+  position: absolute;
+  width: 50%;
+  height: 100%;
+  top: 0;
+  background: #FAFAFA;
+  box-shadow: 0 14px 28px -10px rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Left form page (Non-LPU) */
+.leftForm {
+  left: 0;
+  border-radius: 20px 0 0 20px;
+  z-index: 1;
+}
+
+/* Right form page (LPU) */
+.rightForm {
+  right: 0;
+  border-radius: 0 20px 20px 0;
+  z-index: 1;
+}
+
+/* Form content wrapper - handles fade animation */
+.formContent {
+  padding: 2rem;
+  width: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+  opacity: 0;
+  transform: scale(0.8);
+  transition: opacity 0.7s ease-in-out, transform 0.7s ease-in-out;
+}
+
+/* Show form content animation - 修复选择器 */
+.showFormContent .formContent {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Hide form content animation */
+.hideFormContent .formContent {
+  opacity: 0;
+  transform: scale(0.8);
+}
+
+/* Flipping page - Starts on RIGHT side covering LPU form */
+.flipPage {
+  position: absolute;
+  width: 50%;
+  height: 100%;
+  top: 0;
+  right: 0;
+  transform-origin: left center;
+  transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
+  transition: transform 0.6s ease-in-out;
+  z-index: 20;
+  border-radius: 0 20px 20px 0;
+}
+
+/* Flipped state - moves to LEFT side by rotating */
+.flipToRight {
+  transform: rotateY(-180deg);
+}
+
+/* Page content wrapper */
+.pageContent {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: inherit;
+}
+
+/* Front side - Maroon gradient (Shows when page is on RIGHT - LPU greeting) */
+.flipPageFront {
+  background: linear-gradient(-45deg, #5a0000 0%, #c85a5a 100%);
+  color: white;
+  transform: rotateY(0deg);
+  -webkit-transform: rotateY(0deg);
+  border-radius: 0 20px 20px 0;
+}
+
+/* Back side - Maroon gradient (Shows when flips to LEFT - Non-LPU greeting) */
+.flipPageBack {
+  background: linear-gradient(-45deg, #5a0000 0%, #c85a5a 100%);
+  color: white;
+  transform: rotateY(180deg);
+  -webkit-transform: rotateY(180deg);
+  border-radius: 20px 0 0 20px;
+}
+
+/* Content styling */
+.content {
+  padding: 2rem;
+  text-align: center;
+  width: 90%;
+  max-width: 400px;
+}
+
+/* Welcome content styling */
+.welcomeContent h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  color: inherit;
+}
+
+.welcomeContent p {
+  font-size: 1.1rem;
+  margin-bottom: 2rem;
+  opacity: 0.95;
+  color: inherit;
+}
+
+/* Button styling */
+.submitButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 2rem;
+  border: 2px solid white;
+  background: transparent;
+  color: white;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: 50px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.submitButton:hover {
+  background: white;
+  color: #800000;
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+}
+
+.submitButton:active {
+  transform: translateY(0);
+}
+
+.submitButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Form styling adjustments */
+.formContent form {
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.formContent h2 {
+  font-size: 1.5rem;
+  margin-bottom: 1.5rem;
+  color: #1f2937;
+}
+
+/* Book spine in the middle */
+.spine {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: linear-gradient(to right, rgba(0,0,0,0.2), rgba(0,0,0,0.05));
+  transform: translateX(-50%);
+  z-index: 5;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .bookContainer {
+    height: auto;
+    min-height: 500px;
+  }
+  
+  .formPage {
+    position: relative;
+    width: 100%;
+    height: auto;
+    margin-bottom: 2rem;
+  }
+  
+  .leftForm,
+  .rightForm {
+    border-radius: 20px;
+  }
+  
+  .flipPage {
+    display: none;
+  }
+  
+  .formContent {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
